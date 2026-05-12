@@ -1,63 +1,128 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Social Hub Profile</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EasyChat</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <div class="glass-card">
-            <div class="profile-img-container">
-                <img src="profile-pic.png" alt="Profile Picture" class="profile-img">
-            </div>
-            <h1 class="name">My Profile</h1>
-            <p class="role" style="margin-bottom: 5px;">Welcome to my Social Hub</p>
-            <p class="role" style="font-size: 0.75rem; margin-bottom: 25px;">designed by Dilmurod, young creative tech enthusiast</p>
-            
-            <div class="links">
-                <a href="tg://resolve?domain=YOUR_USERNAME" class="glass-btn">
-                    <i class="fab fa-telegram-plane"></i> Telegram
-                </a>
-                <a href="https://instagram.com/" target="_blank" class="glass-btn">
-                    <i class="fab fa-instagram"></i> Instagram
-                </a>
-                <a href="https://facebook.com/" target="_blank" class="glass-btn">
-                    <i class="fab fa-facebook-f"></i> Facebook
-                </a>
-                <button class="glass-btn vault-btn" onclick="openVault()">
-                    <i class="fas fa-lock"></i> Password Vault
-                </button>
-            </div>
+
+  <!-- Auth View -->
+  <div id="auth-view" class="view active">
+    <div class="auth-container glass">
+      <h1 class="gradient-text">EasyChat</h1>
+      
+      <div id="login-form">
+        <h2>Login</h2>
+        <input type="text" id="login-username" placeholder="Username">
+        <input type="password" id="login-password" placeholder="Password">
+        <button id="login-btn" class="primary-btn">Login</button>
+        <p>Don't have an account? <span class="toggle-auth" onclick="toggleAuth()">Register</span></p>
+      </div>
+
+      <div id="register-form" style="display: none;">
+        <h2>Register</h2>
+        <input type="text" id="reg-username" placeholder="Username">
+        <input type="email" id="reg-email" placeholder="Email">
+        <input type="password" id="reg-password" placeholder="Password">
+        <button id="reg-btn" class="primary-btn">Create Account</button>
+        <p>Already have an account? <span class="toggle-auth" onclick="toggleAuth()">Login</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Container (Hidden until logged in) -->
+  <div id="app-container" class="view" style="display: none;">
+    
+    <!-- Top Bar -->
+    <header class="top-bar glass">
+      <h2 id="top-bar-title">Messages</h2>
+      <button id="logout-btn"><i class="fas fa-sign-out-alt"></i></button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+      
+      <!-- Messages View (List of chats) -->
+      <div id="messages-view" class="tab-view active">
+        <div class="chat-list" id="chat-list">
+          <!-- Chat items injected here -->
         </div>
+      </div>
+
+      <!-- Search View -->
+      <div id="search-view" class="tab-view">
+        <div class="search-container">
+          <input type="text" id="search-input" placeholder="Search users...">
+          <div id="search-results"></div>
+        </div>
+      </div>
+
+      <!-- Profile View -->
+      <div id="profile-view" class="tab-view">
+        <div class="profile-container">
+          <img id="my-profile-pic" src="profile-pic.png" alt="Profile" class="profile-avatar large" onerror="this.src='https://via.placeholder.com/150'">
+          <h2 id="my-username">Username</h2>
+          <div class="profile-stats">
+            <div><strong>0</strong> Posts</div>
+            <div><strong>0</strong> Followers</div>
+            <div><strong>0</strong> Following</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Other User Profile View -->
+      <div id="other-profile-view" class="tab-view">
+        <div class="profile-container">
+          <button class="back-btn" onclick="showTab('search-view')"><i class="fas fa-arrow-left"></i> Back</button>
+          <img id="other-profile-pic" src="profile-pic.png" alt="Profile" class="profile-avatar large" onerror="this.src='https://via.placeholder.com/150'">
+          <h2 id="other-username">Username</h2>
+          <button id="message-user-btn" class="primary-btn message-btn">Message</button>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Chat Room Modal/View -->
+    <div id="chat-room" class="chat-room">
+      <header class="chat-header glass">
+        <button class="back-btn" id="close-chat-btn"><i class="fas fa-arrow-left"></i></button>
+        <img id="chat-header-pic" src="profile-pic.png" class="profile-avatar small" onerror="this.src='https://via.placeholder.com/150'">
+        <h3 id="chat-header-name">User</h3>
+      </header>
+      
+      <div class="chat-messages" id="chat-messages">
+        <!-- Messages injected here -->
+      </div>
+      
+      <div class="chat-input-area glass">
+        <label for="image-upload" class="icon-btn">
+          <i class="fas fa-image"></i>
+        </label>
+        <input type="file" id="image-upload" accept="image/*" style="display: none;">
+        <input type="text" id="message-input" placeholder="Message...">
+        <button id="send-btn" class="icon-btn send-btn"><i class="fas fa-paper-plane"></i></button>
+      </div>
     </div>
 
-    <!-- Password Vault Modal -->
-    <div class="modal-overlay" id="vaultModal">
-        <div class="glass-modal">
-            <div class="modal-header">
-                <h2><i class="fas fa-shield-alt"></i> Password Vault</h2>
-                <button class="close-btn" onclick="closeVault()"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="vault-content">
-                <div class="add-account-form">
-                    <input type="text" id="accPlatform" placeholder="Platform (e.g., Instagram)">
-                    <input type="text" id="accUsername" placeholder="Username">
-                    <input type="password" id="accPassword" placeholder="Password">
-                    <button class="action-btn" onclick="addAccount()">Add Entry</button>
-                </div>
-                <div class="accounts-list" id="accountsList">
-                    <!-- Accounts will be injected here -->
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav glass">
+      <button class="nav-btn" onclick="showTab('profile-view')">
+        <i class="fas fa-user"></i>
+      </button>
+      <button class="nav-btn active" onclick="showTab('messages-view')">
+        <i class="fas fa-comment"></i>
+      </button>
+      <button class="nav-btn" onclick="showTab('search-view')">
+        <i class="fas fa-search"></i>
+      </button>
+    </nav>
+  </div>
 
-    <script src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
