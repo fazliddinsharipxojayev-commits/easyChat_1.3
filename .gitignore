@@ -1,0 +1,6 @@
+node_modules/
+easychat.db
+uploads/*
+!uploads/.gitkeep
+package-lock.json
+.DS_Store

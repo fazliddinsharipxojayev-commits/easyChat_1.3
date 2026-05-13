@@ -1,340 +1,764 @@
-// EasyChat - Frontend Only Implementation using LocalStorage
+/* ═══════════════════════════════════════════════════════════════
+   EasyChat — script.js
+   Full frontend logic: device select, auth, chats, posts, settings
+═══════════════════════════════════════════════════════════════ */
 
-// --- LocalStorage "Database" Helpers ---
-function getDb() {
-  const db = localStorage.getItem('easychat_db');
-  return db ? JSON.parse(db) : { users: [], chats: [], messages: [] };
-}
+const API = '';
+let socket;
+let currentUser = null;       // { userId, username, profilePic }
+let currentChat = null;       // { chatId, otherUser }
+let activeTab = 'home';
+let typingTimer = null;
+let activePostId = null;      // for comments modal
+let onlineUserIds = [];
 
-function saveDb(db) {
-  localStorage.setItem('easychat_db', JSON.stringify(db));
-  // Dispatch an event so other tabs can sync
-  window.dispatchEvent(new Event('localDbUpdate'));
-}
+/* ─── INIT ──────────────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', () => {
+  applyStoredTheme();
 
-// State
-let currentUser = null;
-let currentChatId = null;
-
-// DOM Elements
-const authView = document.getElementById('auth-view');
-const appContainer = document.getElementById('app-container');
-const loginForm = document.getElementById('login-form');
-const registerForm = document.getElementById('register-form');
-const topBarTitle = document.getElementById('top-bar-title');
-const chatRoom = document.getElementById('chat-room');
-const chatMessages = document.getElementById('chat-messages');
-
-// Initialize
-window.onload = () => {
-  const savedUser = sessionStorage.getItem('currentUser');
-  if (savedUser) {
-    currentUser = JSON.parse(savedUser);
-    showApp();
-  }
-};
-
-// Toggle Auth Mode
-function toggleAuth() {
-  if (loginForm.style.display === 'none') {
-    loginForm.style.display = 'block';
-    registerForm.style.display = 'none';
+  const device = localStorage.getItem('ec_device');
+  if (device) {
+    applyDevice(device);
+    checkSession();
   } else {
-    loginForm.style.display = 'none';
-    registerForm.style.display = 'block';
-  }
-}
-
-// Login
-document.getElementById('login-btn').addEventListener('click', () => {
-  const username = document.getElementById('login-username').value;
-  const password = document.getElementById('login-password').value;
-  
-  if (!username || !password) return alert('Enter username and password');
-
-  const db = getDb();
-  const user = db.users.find(u => u.username === username && u.password === password);
-  
-  if (user) {
-    currentUser = { id: user.id, username: user.username, profilePic: user.profilePic };
-    sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-    showApp();
-  } else {
-    alert('Invalid credentials');
+    show('device-overlay');
   }
 });
 
-// Register
-document.getElementById('reg-btn').addEventListener('click', () => {
-  const username = document.getElementById('reg-username').value;
-  const email = document.getElementById('reg-email').value;
-  const password = document.getElementById('reg-password').value;
-  
-  if (!username || !email || !password) return alert('Enter all fields');
+/* ─── DEVICE SELECTION ──────────────────────────────────────── */
+function selectDevice(type) {
+  localStorage.setItem('ec_device', type);
+  applyDevice(type);
+  hide('device-overlay');
+  checkSession();
+}
 
-  const db = getDb();
-  if (db.users.some(u => u.username === username)) {
-    return alert('Username already exists');
+function applyDevice(type) {
+  const app = document.getElementById('app');
+  app.classList.remove('mode-mobile', 'mode-pc');
+  app.classList.add(type === 'mobile' ? 'mode-mobile' : 'mode-pc');
+}
+
+/* ─── SESSION ───────────────────────────────────────────────── */
+function checkSession() {
+  const saved = localStorage.getItem('ec_user');
+  if (saved) {
+    currentUser = JSON.parse(saved);
+    bootApp();
+  } else {
+    showAuth('login');
   }
+}
 
-  const newUser = {
-    id: Date.now().toString(),
-    username,
-    email,
-    password,
-    profilePic: 'https://via.placeholder.com/150'
-  };
+function bootApp() {
+  hide('auth-screen');
+  hide('device-overlay');
+  show('app');
+  initSocket();
+  navigate('home');
+  updateSettingsProfile();
+}
 
-  db.users.push(newUser);
-  saveDb(db);
+/* ─── AUTH ──────────────────────────────────────────────────── */
+function showAuth(form) {
+  hide('app');
+  show('auth-screen');
+  switchForm(form);
+}
 
-  currentUser = { id: newUser.id, username: newUser.username, profilePic: newUser.profilePic };
-  sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-  showApp();
-});
+function switchForm(form) {
+  if (form === 'login') {
+    show('login-form'); hide('register-form');
+    hide('login-error');
+  } else {
+    show('register-form'); hide('login-form');
+    hide('reg-error');
+  }
+}
 
-// Logout
-document.getElementById('logout-btn').addEventListener('click', () => {
-  sessionStorage.removeItem('currentUser');
+async function handleLogin() {
+  const username = val('login-username').trim();
+  const password = val('login-password');
+  if (!username || !password) return showFormError('login-error', 'Please fill in all fields.');
+
+  setButtonLoading('login-btn', true);
+  try {
+    const res = await post('/api/login', { username, password });
+    if (res.error) return showFormError('login-error', res.error);
+    currentUser = { userId: res.userId, username: res.username, profilePic: res.profilePic };
+    localStorage.setItem('ec_user', JSON.stringify(currentUser));
+    bootApp();
+  } catch { showFormError('login-error', 'Network error. Try again.'); }
+  finally { setButtonLoading('login-btn', false); }
+}
+
+async function handleRegister() {
+  const username = val('reg-username').trim();
+  const email = val('reg-email').trim();
+  const password = val('reg-password');
+  if (!username || !email || !password) return showFormError('reg-error', 'Please fill in all fields.');
+
+  setButtonLoading('reg-btn', true);
+  try {
+    const res = await post('/api/register', { username, email, password });
+    if (res.error) return showFormError('reg-error', res.error);
+    currentUser = { userId: res.userId, username: res.username, profilePic: null };
+    localStorage.setItem('ec_user', JSON.stringify(currentUser));
+    bootApp();
+  } catch { showFormError('reg-error', 'Network error. Try again.'); }
+  finally { setButtonLoading('reg-btn', false); }
+}
+
+function handleLogout() {
+  if (socket) socket.disconnect();
   currentUser = null;
-  appContainer.style.display = 'none';
-  authView.style.display = 'flex';
-});
-
-function showApp() {
-  authView.style.display = 'none';
-  appContainer.style.display = 'flex';
-  document.getElementById('my-username').innerText = currentUser.username;
-  document.getElementById('my-profile-pic').src = currentUser.profilePic || 'https://via.placeholder.com/150';
-  loadChats();
+  localStorage.removeItem('ec_user');
+  closeChat();
+  showAuth('login');
+  toast('Logged out');
 }
 
-// Navigation Tabs
-window.showTab = function(tabId) {
-  document.querySelectorAll('.tab-view').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-  
-  document.getElementById(tabId).classList.add('active');
-  
-  if(tabId === 'messages-view') {
-    topBarTitle.innerText = 'Messages';
-    document.querySelectorAll('.nav-btn')[1].classList.add('active');
-    loadChats();
-  } else if(tabId === 'search-view') {
-    topBarTitle.innerText = 'Search';
-    document.querySelectorAll('.nav-btn')[2].classList.add('active');
-  } else if(tabId === 'profile-view') {
-    topBarTitle.innerText = 'Profile';
-    document.querySelectorAll('.nav-btn')[0].classList.add('active');
+function goCreateAccount() {
+  if (socket) socket.disconnect();
+  currentUser = null;
+  localStorage.removeItem('ec_user');
+  closeChat();
+  showAuth('register');
+}
+
+function goSwitchAccount() {
+  if (socket) socket.disconnect();
+  currentUser = null;
+  localStorage.removeItem('ec_user');
+  closeChat();
+  showAuth('login');
+}
+
+/* ─── SOCKET.IO ─────────────────────────────────────────────── */
+function initSocket() {
+  socket = io();
+  socket.emit('userOnline', currentUser.userId);
+
+  socket.on('onlineUsers', (ids) => {
+    onlineUserIds = ids.map(String);
+    updateOnlineStatus();
+  });
+
+  socket.on('receiveMessage', (msg) => {
+    if (currentChat && msg.chat_id === currentChat.chatId) {
+      appendMessage(msg);
+      scrollMessages();
+    }
+    loadChats(); // refresh chat list preview
+  });
+
+  socket.on('typing', ({ username }) => {
+    if (currentChat) {
+      const el = document.getElementById('typing-indicator');
+      el.classList.remove('hidden');
+      scrollMessages();
+    }
+  });
+
+  socket.on('stopTyping', () => {
+    document.getElementById('typing-indicator').classList.add('hidden');
+  });
+}
+
+/* ─── NAVIGATION ─────────────────────────────────────────────── */
+function navigate(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+  const view = document.getElementById(`view-${tab}`);
+  const btn = document.getElementById(`nav-${tab}`);
+  if (view) view.classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  // Top bar title + actions
+  const titles = { home: 'Chats', search: 'Search', posts: 'Posts', profile: 'My Profile', settings: 'Settings' };
+  document.getElementById('top-title').textContent = titles[tab] || '';
+  renderTopActions(tab);
+
+  if (tab === 'home') loadChats();
+  if (tab === 'search') {
+    document.getElementById('search-input').focus();
+    clearSearch();
+  }
+  if (tab === 'posts') loadPosts();
+  if (tab === 'profile') loadMyProfile();
+  if (tab === 'settings') updateSettingsProfile();
+}
+
+function renderTopActions(tab) {
+  const wrap = document.getElementById('top-actions');
+  wrap.innerHTML = '';
+  if (tab === 'posts') {
+    wrap.innerHTML = `<button class="top-icon-btn" onclick="triggerPostUpload()" title="New post"><i class="fas fa-plus"></i></button>`;
+  }
+  if (tab === 'profile') {
+    wrap.innerHTML = `<button class="top-icon-btn" onclick="triggerAvatarUploadProfile()" title="Change photo"><i class="fas fa-camera"></i></button>`;
   }
 }
 
-// Search Users
-document.getElementById('search-input').addEventListener('input', (e) => {
-  const q = e.target.value.toLowerCase();
-  const resultsDiv = document.getElementById('search-results');
-  
-  if (q.length < 1) {
-    resultsDiv.innerHTML = '';
+/* ─── CHATS LIST ─────────────────────────────────────────────── */
+async function loadChats() {
+  if (!currentUser) return;
+  try {
+    const chats = await get(`/api/chats/${currentUser.userId}`);
+    const list = document.getElementById('chat-list');
+    const empty = document.getElementById('chats-empty');
+    list.innerHTML = '';
+    if (!chats.length) { show('chats-empty'); return; }
+    hide('chats-empty');
+    chats.forEach(c => {
+      const isOnline = onlineUserIds.includes(String(c.other_user_id));
+      const li = document.createElement('li');
+      li.className = 'chat-item';
+      li.onclick = () => openChat(c.chat_id, { userId: c.other_user_id, username: c.username, profilePic: c.profilePic });
+      li.innerHTML = `
+        <div class="chat-avatar">
+          <img src="${avatarSrc(c.profilePic, c.username)}" alt="${c.username}">
+          ${isOnline ? '<div class="online-dot"></div>' : ''}
+        </div>
+        <div class="chat-info">
+          <div class="chat-name">${esc(c.username)}</div>
+          <div class="chat-preview">${esc(c.last_message || 'Start chatting…')}</div>
+        </div>
+        <div class="chat-meta"><span>${timeAgo(c.updated_at)}</span></div>`;
+      list.appendChild(li);
+    });
+  } catch(e) { console.error(e); }
+}
+
+function updateOnlineStatus() {
+  document.querySelectorAll('.chat-item').forEach(item => {
+    // re-render dots on next loadChats
+  });
+}
+
+/* ─── OPEN / CLOSE CHAT ─────────────────────────────────────── */
+async function openChat(chatId, otherUser) {
+  currentChat = { chatId, otherUser };
+  const room = document.getElementById('chat-room');
+  room.classList.remove('hidden');
+  setTimeout(() => room.classList.add('open'), 10);
+
+  document.getElementById('chat-header-name').textContent = otherUser.username;
+  const pic = document.getElementById('chat-header-pic');
+  pic.src = avatarSrc(otherUser.profilePic, otherUser.username);
+
+  const statusEl = document.getElementById('chat-status');
+  const isOnline = onlineUserIds.includes(String(otherUser.userId));
+  statusEl.textContent = isOnline ? '● Online' : '○ Offline';
+  statusEl.className = 'chat-status-dot' + (isOnline ? ' online' : '');
+
+  socket.emit('joinChat', chatId);
+  document.getElementById('chat-messages').innerHTML = '';
+  document.getElementById('typing-indicator').classList.add('hidden');
+
+  try {
+    const msgs = await get(`/api/messages/${chatId}`);
+    msgs.forEach(m => appendMessage(m));
+    scrollMessages();
+  } catch(e) { console.error(e); }
+
+  document.getElementById('msg-input').focus();
+}
+
+function closeChat() {
+  const room = document.getElementById('chat-room');
+  room.classList.remove('open');
+  setTimeout(() => {
+    room.classList.add('hidden');
+    if (currentChat && socket) {
+      socket.emit('leaveChat', currentChat.chatId);
+      socket.emit('stopTyping', { chatId: currentChat.chatId });
+    }
+    currentChat = null;
+    document.getElementById('chat-messages').innerHTML = '';
+  }, 310);
+}
+
+/* ─── MESSAGES ──────────────────────────────────────────────── */
+function appendMessage(msg) {
+  const wrap = document.createElement('div');
+  const isMe = String(msg.sender_id) === String(currentUser.userId);
+  wrap.className = `msg-wrap ${isMe ? 'me' : 'them'}`;
+
+  let content = '';
+  if (msg.type === 'image') {
+    content = `<img class="msg-image" src="${msg.content}" alt="image" onclick="openImageFull('${msg.content}')">`;
+  } else {
+    content = `<div class="msg-bubble">${esc(msg.content)}</div>`;
+  }
+
+  wrap.innerHTML = `
+    ${content}
+    <span class="msg-time">${formatTime(msg.created_at)}</span>`;
+  document.getElementById('chat-messages').appendChild(wrap);
+}
+
+function scrollMessages() {
+  const el = document.getElementById('chat-messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function handleMsgKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function handleTyping() {
+  if (!currentChat) return;
+  socket.emit('typing', { chatId: currentChat.chatId, username: currentUser.username });
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => socket.emit('stopTyping', { chatId: currentChat.chatId }), 1500);
+}
+
+function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text || !currentChat) return;
+  socket.emit('sendMessage', { chatId: currentChat.chatId, senderId: currentUser.userId, content: text, type: 'text' });
+  input.value = '';
+  socket.emit('stopTyping', { chatId: currentChat.chatId });
+}
+
+async function handleChatImageUpload(input) {
+  if (!input.files[0] || !currentChat) return;
+  const formData = new FormData();
+  formData.append('image', input.files[0]);
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.imageUrl) {
+      socket.emit('sendMessage', { chatId: currentChat.chatId, senderId: currentUser.userId, content: data.imageUrl, type: 'image' });
+    } else { toast('Upload failed', 'error'); }
+  } catch { toast('Upload failed', 'error'); }
+  input.value = '';
+}
+
+/* ─── SEARCH ─────────────────────────────────────────────────── */
+let searchDebounce = null;
+async function handleSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  const clearBtn = document.getElementById('clear-search');
+  clearBtn.classList.toggle('hidden', !q);
+  clearTimeout(searchDebounce);
+  if (!q) { document.getElementById('search-results').innerHTML = ''; show('search-empty'); return; }
+  hide('search-empty');
+  searchDebounce = setTimeout(async () => {
+    try {
+      const users = await get(`/api/users/search?q=${encodeURIComponent(q)}&currentUserId=${currentUser.userId}`);
+      renderSearchResults(users);
+    } catch(e) { console.error(e); }
+  }, 300);
+}
+
+function renderSearchResults(users) {
+  const container = document.getElementById('search-results');
+  container.innerHTML = '';
+  if (!users.length) {
+    container.innerHTML = `<div class="empty-state" style="height:200px"><i class="fas fa-user-slash"></i><p>No users found</p></div>`;
     return;
   }
-  
-  const db = getDb();
-  const users = db.users.filter(u => u.username.toLowerCase().includes(q) && u.id !== currentUser.id);
-  
-  resultsDiv.innerHTML = '';
   users.forEach(u => {
     const div = document.createElement('div');
-    div.className = 'search-result-item';
+    div.className = 'user-item';
     div.innerHTML = `
-      <img src="${u.profilePic}" onerror="this.src='https://via.placeholder.com/150'" class="profile-avatar medium">
-      <span>${u.username}</span>
-    `;
-    div.onclick = () => showOtherProfile(u);
-    resultsDiv.appendChild(div);
+      <div class="user-avatar" onclick="viewOtherProfile(${u.id},'${esc(u.username)}','${u.profilePic||''}')" style="cursor:pointer">
+        <img src="${avatarSrc(u.profilePic, u.username)}" alt="${u.username}">
+      </div>
+      <div class="user-info" onclick="viewOtherProfile(${u.id},'${esc(u.username)}','${u.profilePic||''}')" style="cursor:pointer">
+        <strong>${esc(u.username)}</strong>
+        <small>View profile</small>
+      </div>
+      <button class="msg-user-btn" onclick="startChatWith(${u.id},'${esc(u.username)}','${u.profilePic||''}')">
+        <i class="fas fa-paper-plane"></i> Chat
+      </button>`;
+    container.appendChild(div);
   });
-});
-
-let currentViewedUser = null;
-
-window.showOtherProfile = function(user) {
-  currentViewedUser = user;
-  document.getElementById('other-username').innerText = user.username;
-  document.getElementById('other-profile-pic').src = user.profilePic;
-  
-  document.querySelectorAll('.tab-view').forEach(t => t.classList.remove('active'));
-  document.getElementById('other-profile-view').classList.add('active');
-  topBarTitle.innerText = user.username;
 }
 
-// Start Chat
-document.getElementById('message-user-btn').addEventListener('click', () => {
-  const db = getDb();
-  let chat = db.chats.find(c => 
-    (c.user1_id === currentUser.id && c.user2_id === currentViewedUser.id) || 
-    (c.user1_id === currentViewedUser.id && c.user2_id === currentUser.id)
-  );
+async function startChatWith(userId, username, profilePic) {
+  try {
+    const data = await post('/api/chats', { user1_id: currentUser.userId, user2_id: userId });
+    navigate('home');
+    await openChat(data.chatId, { userId, username, profilePic });
+  } catch(e) { toast('Could not open chat', 'error'); }
+}
 
-  if (!chat) {
-    chat = {
-      id: Date.now().toString(),
-      user1_id: currentUser.id,
-      user2_id: currentViewedUser.id,
-      last_message: '',
-      updated_at: Date.now()
-    };
-    db.chats.push(chat);
-    saveDb(db);
-  }
+/* ─── OTHER USER PROFILE ─────────────────────────────────────── */
+let viewingUserId = null;
 
-  openChatRoom(chat.id, currentViewedUser.username, currentViewedUser.profilePic);
-});
+async function viewOtherProfile(userId, username, profilePic) {
+  viewingUserId = { userId, username, profilePic };
 
-// Load Chats
-function loadChats() {
+  // Switch to other-profile view (not a nav tab — show it as overlay inside main)
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-other-profile').classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('nav-search').classList.add('active');
+  document.getElementById('top-title').textContent = username;
+  document.getElementById('top-actions').innerHTML = '';
+
+  document.getElementById('other-profile-avatar').src = avatarSrc(profilePic, username);
+  document.getElementById('other-profile-username').textContent = username;
+
+  // Load their posts
+  const grid = document.getElementById('other-posts-grid');
+  const empty = document.getElementById('other-posts-empty');
+  grid.innerHTML = '';
+  hide('other-posts-empty');
+
+  try {
+    const posts = await get(`/api/posts?userId=${currentUser.userId}`);
+    const userPosts = posts.filter(p => p.user_id === userId);
+    document.getElementById('other-post-count').textContent = userPosts.length;
+    if (!userPosts.length) { show('other-posts-empty'); return; }
+    userPosts.forEach(p => grid.appendChild(buildGridItem(p)));
+  } catch(e) { console.error(e); }
+}
+
+async function startChatFromProfile() {
+  if (!viewingUserId) return;
+  const { userId, username, profilePic } = viewingUserId;
+  try {
+    const data = await post('/api/chats', { user1_id: currentUser.userId, user2_id: userId });
+    navigate('home');
+    await openChat(data.chatId, { userId, username, profilePic });
+  } catch(e) { toast('Could not open chat', 'error'); }
+}
+
+/* ─── MY PROFILE PAGE ────────────────────────────────────────── */
+async function loadMyProfile() {
   if (!currentUser) return;
-  const db = getDb();
-  const myChats = db.chats.filter(c => c.user1_id === currentUser.id || c.user2_id === currentUser.id);
-  
-  // Sort by recent
-  myChats.sort((a, b) => b.updated_at - a.updated_at);
-  
-  const chatList = document.getElementById('chat-list');
-  chatList.innerHTML = '';
-  
-  myChats.forEach(c => {
-    const otherUserId = c.user1_id === currentUser.id ? c.user2_id : c.user1_id;
-    const otherUser = db.users.find(u => u.id === otherUserId);
-    
-    if (otherUser) {
-      const div = document.createElement('div');
-      div.className = 'chat-item';
-      div.innerHTML = `
-        <img src="${otherUser.profilePic}" onerror="this.src='https://via.placeholder.com/150'" class="profile-avatar medium">
-        <div class="chat-info">
-          <div class="chat-name">${otherUser.username}</div>
-          <div class="chat-last-msg">${c.last_message || 'New Chat'}</div>
-        </div>
-      `;
-      div.onclick = () => openChatRoom(c.id, otherUser.username, otherUser.profilePic);
-      chatList.appendChild(div);
-    }
+  document.getElementById('profile-page-username').textContent = currentUser.username;
+  document.getElementById('profile-page-avatar').src = avatarSrc(currentUser.profilePic, currentUser.username);
+
+  const grid = document.getElementById('my-posts-grid');
+  const empty = document.getElementById('my-posts-empty');
+  grid.innerHTML = '';
+  hide('my-posts-empty');
+
+  try {
+    const posts = await get(`/api/posts?userId=${currentUser.userId}`);
+    const myPosts = posts.filter(p => p.user_id === currentUser.userId);
+    document.getElementById('my-post-count').textContent = myPosts.length;
+    if (!myPosts.length) { show('my-posts-empty'); return; }
+    myPosts.forEach(p => grid.appendChild(buildGridItem(p)));
+  } catch(e) { console.error(e); }
+}
+
+function buildGridItem(p) {
+  const div = document.createElement('div');
+  div.className = 'profile-grid-item';
+  div.innerHTML = `
+    <img src="${p.image_url}" alt="post" loading="lazy">
+    <div class="grid-overlay">
+      <span><i class="fas fa-heart"></i> ${p.like_count || 0}</span>
+      <span><i class="fas fa-comment"></i> ${p.comment_count || 0}</span>
+    </div>`;
+  div.onclick = () => openImageFull(p.image_url);
+  return div;
+}
+
+function triggerAvatarUploadProfile() {
+  document.getElementById('avatar-upload-profile').click();
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-results').innerHTML = '';
+  document.getElementById('clear-search').classList.add('hidden');
+  show('search-empty');
+}
+
+/* ─── POSTS ──────────────────────────────────────────────────── */
+async function loadPosts() {
+  try {
+    const posts = await get(`/api/posts?userId=${currentUser.userId}`);
+    const feed = document.getElementById('posts-feed');
+    const empty = document.getElementById('posts-empty');
+    feed.innerHTML = '';
+    if (!posts.length) { show('posts-empty'); return; }
+    hide('posts-empty');
+    posts.forEach(p => feed.appendChild(buildPostCard(p)));
+  } catch(e) { console.error(e); }
+}
+
+function buildPostCard(p) {
+  const div = document.createElement('div');
+  div.className = 'post-card';
+  div.id = `post-${p.id}`;
+  const liked = p.my_reaction === 'like';
+  const disliked = p.my_reaction === 'dislike';
+  div.innerHTML = `
+    <div class="post-header">
+      <div class="post-avatar"><img src="${avatarSrc(p.profilePic, p.username)}" alt="${p.username}"></div>
+      <div class="post-user-info">
+        <strong>${esc(p.username)}</strong>
+        <small>${timeAgo(p.created_at)}</small>
+      </div>
+    </div>
+    <div class="post-image" onclick="openImageFull('${p.image_url}')">
+      <img src="${p.image_url}" alt="post" loading="lazy">
+    </div>
+    <div class="post-actions">
+      <button class="post-action-btn ${liked ? 'liked' : ''}" onclick="reactPost(${p.id},'like')">
+        <i class="fas fa-heart"></i> <span id="likes-${p.id}">${p.like_count}</span>
+      </button>
+      <button class="post-action-btn ${disliked ? 'disliked' : ''}" onclick="reactPost(${p.id},'dislike')">
+        <i class="fas fa-thumbs-down"></i> <span id="dislikes-${p.id}">${p.dislike_count}</span>
+      </button>
+      <button class="post-action-btn post-comment-btn" onclick="openComments(${p.id})">
+        <i class="fas fa-comment"></i> <span id="comments-count-${p.id}">${p.comment_count}</span>
+      </button>
+    </div>
+    ${p.caption ? `<div class="post-caption"><strong>${esc(p.username)}</strong>${esc(p.caption)}</div>` : ''}`;
+  return div;
+}
+
+function triggerPostUpload() {
+  document.getElementById('post-image-input').click();
+}
+
+async function handlePostUpload(input) {
+  if (!input.files[0]) return;
+  const caption = prompt('Add a caption (optional):') || '';
+  const formData = new FormData();
+  formData.append('image', input.files[0]);
+  formData.append('userId', currentUser.userId);
+  formData.append('caption', caption);
+  try {
+    const res = await fetch('/api/posts', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.success) { toast('Post shared! 🎉', 'success'); loadPosts(); }
+    else toast(data.error || 'Upload failed', 'error');
+  } catch { toast('Upload failed', 'error'); }
+  input.value = '';
+}
+
+async function reactPost(postId, type) {
+  try {
+    const res = await post(`/api/posts/${postId}/like`, { userId: currentUser.userId, type });
+    // Refresh counts
+    const updated = await get(`/api/posts?userId=${currentUser.userId}`);
+    const p = updated.find(x => x.id === postId);
+    if (!p) return;
+    document.getElementById(`likes-${postId}`).textContent = p.like_count;
+    document.getElementById(`dislikes-${postId}`).textContent = p.dislike_count;
+    // Update button states
+    const card = document.getElementById(`post-${postId}`);
+    const likeBtns = card.querySelectorAll('.post-action-btn');
+    likeBtns[0].className = `post-action-btn ${p.my_reaction === 'like' ? 'liked' : ''}`;
+    likeBtns[1].className = `post-action-btn ${p.my_reaction === 'dislike' ? 'disliked' : ''}`;
+  } catch(e) { console.error(e); }
+}
+
+/* ─── COMMENTS ──────────────────────────────────────────────── */
+async function openComments(postId) {
+  activePostId = postId;
+  show('comments-modal');
+  document.getElementById('comments-list').innerHTML = '';
+  document.getElementById('comment-input').value = '';
+  try {
+    const comments = await get(`/api/posts/${postId}/comments`);
+    renderComments(comments);
+  } catch(e) { console.error(e); }
+  document.getElementById('comment-input').focus();
+}
+
+function renderComments(comments) {
+  const list = document.getElementById('comments-list');
+  list.innerHTML = '';
+  if (!comments.length) {
+    list.innerHTML = `<div style="text-align:center;color:var(--text3);padding:24px;font-size:13px">No comments yet. Be first!</div>`;
+    return;
+  }
+  comments.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'comment-item';
+    div.innerHTML = `
+      <div class="comment-avatar"><img src="${avatarSrc(c.profilePic, c.username)}" alt="${c.username}"></div>
+      <div class="comment-bubble">
+        <strong>${esc(c.username)}</strong>
+        <p>${esc(c.content)}</p>
+      </div>`;
+    list.appendChild(div);
   });
 }
 
-// Chat Room Logic
-function openChatRoom(chatId, username, pic) {
-  currentChatId = chatId;
-  document.getElementById('chat-header-name').innerText = username;
-  document.getElementById('chat-header-pic').src = pic;
-  chatRoom.classList.add('open');
-  
-  loadMessages();
-}
+function closeComments() { hide('comments-modal'); activePostId = null; }
+function closeCommentsIfOutside(e) { if (e.target.id === 'comments-modal') closeComments(); }
 
-function loadMessages() {
-  if (!currentChatId) return;
-  const db = getDb();
-  const messages = db.messages.filter(m => m.chat_id === currentChatId);
-  
-  chatMessages.innerHTML = '';
-  messages.forEach(msg => appendMessage(msg));
-  scrollToBottom();
-}
+function handleCommentKey(e) { if (e.key === 'Enter') submitComment(); }
 
-document.getElementById('close-chat-btn').addEventListener('click', () => {
-  chatRoom.classList.remove('open');
-  currentChatId = null;
-  loadChats();
-});
-
-// Send Message
-document.getElementById('send-btn').addEventListener('click', () => {
-  const input = document.getElementById('message-input');
+async function submitComment() {
+  if (!activePostId) return;
+  const input = document.getElementById('comment-input');
   const content = input.value.trim();
-  if (content && currentChatId) {
-    sendMessage(content, 'text');
-    input.value = '';
-  }
-});
-
-document.getElementById('message-input').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
-    document.getElementById('send-btn').click();
-  }
-});
-
-// Send Image
-document.getElementById('image-upload').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file || !currentChatId) return;
-  
-  const reader = new FileReader();
-  reader.onload = function(event) {
-    sendMessage(event.target.result, 'image');
-  };
-  reader.readAsDataURL(file);
-});
-
-function sendMessage(content, type) {
-  const db = getDb();
-  
-  const newMsg = {
-    id: Date.now().toString(),
-    chat_id: currentChatId,
-    sender_id: currentUser.id,
-    content,
-    type,
-    created_at: Date.now()
-  };
-  
-  db.messages.push(newMsg);
-  
-  const chatIndex = db.chats.findIndex(c => c.id === currentChatId);
-  if (chatIndex > -1) {
-    db.chats[chatIndex].last_message = type === 'image' ? 'Image message' : content;
-    db.chats[chatIndex].updated_at = Date.now();
-  }
-  
-  saveDb(db);
-  appendMessage(newMsg);
-  scrollToBottom();
-}
-
-function appendMessage(msg) {
-  const div = document.createElement('div');
-  div.className = `message ${msg.sender_id === currentUser.id ? 'sent' : 'received'}`;
-  
-  if (msg.type === 'image') {
-    div.innerHTML = `<img src="${msg.content}">`;
-  } else {
-    div.innerText = msg.content;
-  }
-  
-  chatMessages.appendChild(div);
-}
-
-function scrollToBottom() {
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-// Cross-tab Synchronization (Real-time Simulation)
-window.addEventListener('storage', (e) => {
-  if (e.key === 'easychat_db') {
-    handleDbUpdate();
-  }
-});
-
-window.addEventListener('localDbUpdate', () => {
-  handleDbUpdate();
-});
-
-function handleDbUpdate() {
-  if (currentUser) {
-    if (currentChatId) {
-      loadMessages();
-    } else {
-      loadChats();
+  if (!content) return;
+  try {
+    const comment = await post(`/api/posts/${activePostId}/comments`, { userId: currentUser.userId, content });
+    if (comment.id) {
+      const list = document.getElementById('comments-list');
+      if (list.querySelector('[style]')) list.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'comment-item';
+      div.innerHTML = `
+        <div class="comment-avatar"><img src="${avatarSrc(comment.profilePic, comment.username)}" alt="${comment.username}"></div>
+        <div class="comment-bubble">
+          <strong>${esc(comment.username)}</strong>
+          <p>${esc(comment.content)}</p>
+        </div>`;
+      list.appendChild(div);
+      input.value = '';
+      // update count
+      const el = document.getElementById(`comments-count-${activePostId}`);
+      if (el) el.textContent = parseInt(el.textContent || 0) + 1;
     }
+  } catch(e) { toast('Failed to post comment', 'error'); }
+}
+
+/* ─── SETTINGS ──────────────────────────────────────────────── */
+function updateSettingsProfile() {
+  if (!currentUser) return;
+  document.getElementById('settings-username').textContent = currentUser.username;
+  document.getElementById('settings-avatar').src = avatarSrc(currentUser.profilePic, currentUser.username);
+  // Also update profile tab avatar if visible
+  const profileAvatar = document.getElementById('profile-page-avatar');
+  if (profileAvatar) profileAvatar.src = avatarSrc(currentUser.profilePic, currentUser.username);
+}
+
+function triggerAvatarUpload() { document.getElementById('avatar-upload-input').click(); }
+
+async function handleAvatarUpload(input) {
+  if (!input.files[0]) return;
+  const formData = new FormData();
+  formData.append('avatar', input.files[0]);
+  try {
+    const res = await fetch(`/api/users/${currentUser.userId}/avatar`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.profilePic) {
+      currentUser.profilePic = data.profilePic;
+      localStorage.setItem('ec_user', JSON.stringify(currentUser));
+      updateSettingsProfile();
+      // Refresh profile page avatar
+      const pa = document.getElementById('profile-page-avatar');
+      if (pa) pa.src = data.profilePic;
+      toast('Profile picture updated! 🎉', 'success');
+    } else { toast(data.error || 'Upload failed', 'error'); }
+  } catch { toast('Failed to update avatar', 'error'); }
+  input.value = '';
+}
+
+/* ─── THEME ──────────────────────────────────────────────────── */
+function applyStoredTheme() {
+  const theme = localStorage.getItem('ec_theme') || 'dark';
+  if (theme === 'light') {
+    document.body.classList.add('light-mode');
+    document.getElementById('theme-toggle')?.classList.add('on');
+    const icon = document.getElementById('theme-icon');
+    if (icon) icon.className = 'fas fa-sun';
   }
+}
+
+function toggleTheme() {
+  const body = document.body;
+  const toggle = document.getElementById('theme-toggle');
+  const icon = document.getElementById('theme-icon');
+  const isLight = body.classList.toggle('light-mode');
+  toggle.classList.toggle('on', isLight);
+  icon.className = isLight ? 'fas fa-sun' : 'fas fa-moon';
+  localStorage.setItem('ec_theme', isLight ? 'light' : 'dark');
+}
+
+/* ─── PASSWORD TOGGLE ────────────────────────────────────────── */
+function togglePassword(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const isText = input.type === 'text';
+  input.type = isText ? 'password' : 'text';
+  btn.querySelector('i').className = isText ? 'fas fa-eye' : 'fas fa-eye-slash';
+}
+
+/* ─── IMAGE FULLSCREEN ───────────────────────────────────────── */
+function openImageFull(src) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out`;
+  const img = document.createElement('img');
+  img.src = src;
+  img.style.cssText = `max-width:95%;max-height:95%;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.8)`;
+  overlay.appendChild(img);
+  overlay.onclick = () => overlay.remove();
+  document.getElementById('app-inner').appendChild(overlay);
+}
+
+/* ─── HELPERS ────────────────────────────────────────────────── */
+function avatarSrc(pic, username) {
+  if (pic) return pic;
+  const initials = encodeURIComponent((username || 'U').charAt(0).toUpperCase());
+  return `https://ui-avatars.com/api/?background=7c6eff&color=fff&name=${initials}&size=128`;
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  if (diff < 60) return 'now';
+  if (diff < 3600) return `${Math.floor(diff/60)}m`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h`;
+  return `${Math.floor(diff/86400)}d`;
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function val(id) { return document.getElementById(id)?.value || ''; }
+function show(id) { document.getElementById(id)?.classList.remove('hidden'); }
+function hide(id) { document.getElementById(id)?.classList.add('hidden'); }
+
+function showFormError(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function setButtonLoading(id, loading) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.style.opacity = loading ? '0.7' : '1';
+}
+
+let toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = 'toast hidden', 2800);
+}
+
+async function get(url) {
+  const res = await fetch(API + url);
+  return res.json();
+}
+
+async function post(url, body) {
+  const res = await fetch(API + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return res.json();
 }

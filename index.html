@@ -3,126 +3,380 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EasyChat</title>
+  <title>EasyChat – Chat with anyone, instantly</title>
+  <meta name="description" content="EasyChat is a real-time messaging app. Chat, share photos, and discover posts from people around you.">
   <link rel="stylesheet" href="style.css">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 </head>
-<body>
+<body class="dark-mode">
 
-  <!-- Auth View -->
-  <div id="auth-view" class="view active">
-    <div class="auth-container glass">
-      <h1 class="gradient-text">EasyChat</h1>
-      
-      <div id="login-form">
-        <h2>Login</h2>
-        <input type="text" id="login-username" placeholder="Username">
-        <input type="password" id="login-password" placeholder="Password">
-        <button id="login-btn" class="primary-btn">Login</button>
-        <p>Don't have an account? <span class="toggle-auth" onclick="toggleAuth()">Register</span></p>
+  <!-- ═══════════════════════════════════════════
+       DEVICE SELECTION OVERLAY
+  ═══════════════════════════════════════════ -->
+  <div id="device-overlay" class="overlay-screen">
+    <div class="device-card">
+      <div class="device-logo">
+        <i class="fas fa-bolt"></i>
+        <span>EasyChat</span>
       </div>
-
-      <div id="register-form" style="display: none;">
-        <h2>Register</h2>
-        <input type="text" id="reg-username" placeholder="Username">
-        <input type="email" id="reg-email" placeholder="Email">
-        <input type="password" id="reg-password" placeholder="Password">
-        <button id="reg-btn" class="primary-btn">Create Account</button>
-        <p>Already have an account? <span class="toggle-auth" onclick="toggleAuth()">Login</span></p>
+      <p class="device-subtitle">How are you using EasyChat?</p>
+      <div class="device-options">
+        <button class="device-btn" id="btn-mobile" onclick="selectDevice('mobile')">
+          <i class="fas fa-mobile-alt"></i>
+          <span>Mobile</span>
+          <small>Phone-sized view</small>
+        </button>
+        <button class="device-btn" id="btn-pc" onclick="selectDevice('pc')">
+          <i class="fas fa-desktop"></i>
+          <span>Desktop</span>
+          <small>Full-width view</small>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- App Container (Hidden until logged in) -->
-  <div id="app-container" class="view" style="display: none;">
-    
-    <!-- Top Bar -->
-    <header class="top-bar glass">
-      <h2 id="top-bar-title">Messages</h2>
-      <button id="logout-btn"><i class="fas fa-sign-out-alt"></i></button>
-    </header>
+  <!-- ═══════════════════════════════════════════
+       AUTH SCREEN
+  ═══════════════════════════════════════════ -->
+  <div id="auth-screen" class="overlay-screen hidden">
+    <div class="auth-wrapper">
+      <div class="auth-card glass">
+        <div class="auth-logo">
+          <i class="fas fa-bolt"></i>
+          <h1>EasyChat</h1>
+        </div>
+        <p class="auth-tagline">Connect with anyone, instantly.</p>
 
-    <!-- Main Content Area -->
-    <main class="content-area">
-      
-      <!-- Messages View (List of chats) -->
-      <div id="messages-view" class="tab-view active">
-        <div class="chat-list" id="chat-list">
-          <!-- Chat items injected here -->
+        <!-- LOGIN -->
+        <div id="login-form">
+          <h2 class="form-title">Welcome back</h2>
+          <div class="input-group">
+            <i class="fas fa-user"></i>
+            <input type="text" id="login-username" placeholder="Username" autocomplete="username">
+          </div>
+          <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+            <button class="toggle-pass" onclick="togglePassword('login-password', this)"><i class="fas fa-eye"></i></button>
+          </div>
+          <div id="login-error" class="form-error hidden"></div>
+          <button id="login-btn" class="primary-btn" onclick="handleLogin()">
+            <span>Sign In</span><i class="fas fa-arrow-right"></i>
+          </button>
+          <p class="auth-switch">Don't have an account? <a href="#" onclick="switchForm('register')">Create one</a></p>
+        </div>
+
+        <!-- REGISTER -->
+        <div id="register-form" class="hidden">
+          <h2 class="form-title">Create account</h2>
+          <div class="input-group">
+            <i class="fas fa-user"></i>
+            <input type="text" id="reg-username" placeholder="Username (min 3 chars)" autocomplete="username">
+          </div>
+          <div class="input-group">
+            <i class="fas fa-envelope"></i>
+            <input type="email" id="reg-email" placeholder="Email address" autocomplete="email">
+          </div>
+          <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="password" id="reg-password" placeholder="Password (min 6 chars)" autocomplete="new-password">
+            <button class="toggle-pass" onclick="togglePassword('reg-password', this)"><i class="fas fa-eye"></i></button>
+          </div>
+          <div id="reg-error" class="form-error hidden"></div>
+          <button id="reg-btn" class="primary-btn" onclick="handleRegister()">
+            <span>Create Account</span><i class="fas fa-arrow-right"></i>
+          </button>
+          <p class="auth-switch">Already have an account? <a href="#" onclick="switchForm('login')">Sign in</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       MAIN APP
+  ═══════════════════════════════════════════ -->
+  <div id="app" class="hidden">
+    <div id="app-inner">
+
+      <!-- TOP BAR -->
+      <header class="top-bar glass" id="top-bar">
+        <div class="top-bar-left">
+          <div class="top-logo"><i class="fas fa-bolt"></i></div>
+          <h2 id="top-title">Chats</h2>
+        </div>
+        <div class="top-bar-right" id="top-actions">
+          <!-- Dynamic action buttons injected by JS -->
+        </div>
+      </header>
+
+      <!-- MAIN CONTENT -->
+      <main id="main-content">
+
+        <!-- ── HOME (Chats List) ─────────────────────── -->
+        <section id="view-home" class="view active">
+          <div class="empty-state" id="chats-empty">
+            <i class="fas fa-comment-dots"></i>
+            <h3>No conversations yet</h3>
+            <p>Search for users to start chatting</p>
+          </div>
+          <ul class="chat-list" id="chat-list"></ul>
+        </section>
+
+        <!-- ── SEARCH ───────────────────────────────── -->
+        <section id="view-search" class="view">
+          <div class="search-bar-wrap">
+            <div class="search-bar">
+              <i class="fas fa-search"></i>
+              <input type="text" id="search-input" placeholder="Search users..." oninput="handleSearch()">
+              <button class="clear-btn hidden" id="clear-search" onclick="clearSearch()"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div id="search-results" class="user-results"></div>
+          <div class="empty-state" id="search-empty">
+            <i class="fas fa-users"></i>
+            <h3>Find people</h3>
+            <p>Search by username to find friends</p>
+          </div>
+        </section>
+
+        <!-- ── POSTS FEED ────────────────────────────── -->
+        <section id="view-posts" class="view">
+          <div class="posts-upload-btn-wrap">
+            <button class="fab-upload" onclick="triggerPostUpload()">
+              <i class="fas fa-plus"></i> Share a Photo
+            </button>
+            <input type="file" id="post-image-input" accept="image/*" style="display:none" onchange="handlePostUpload(this)">
+          </div>
+          <div id="posts-feed" class="posts-feed"></div>
+          <div class="empty-state" id="posts-empty">
+            <i class="fas fa-images"></i>
+            <h3>No posts yet</h3>
+            <p>Be the first to share a photo!</p>
+          </div>
+        </section>
+
+        <!-- ── MY PROFILE ─────────────────────────────────────────────── -->
+        <section id="view-profile" class="view">
+          <div class="profile-page">
+            <div class="profile-hero">
+              <div class="profile-avatar-wrap" onclick="triggerAvatarUploadProfile()">
+                <img id="profile-page-avatar" src="" alt="Avatar" onerror="this.src='https://ui-avatars.com/api/?background=7c6eff&color=fff&name=U&size=128'">
+                <div class="avatar-overlay"><i class="fas fa-camera"></i><span>Change</span></div>
+              </div>
+              <input type="file" id="avatar-upload-profile" accept="image/*" style="display:none" onchange="handleAvatarUpload(this)">
+              <h2 id="profile-page-username">Username</h2>
+              <p id="profile-page-bio" class="profile-bio">EasyChat user</p>
+            </div>
+            <div class="profile-stats-bar">
+              <div class="profile-stat">
+                <strong id="my-post-count">0</strong>
+                <span>Posts</span>
+              </div>
+              <div class="profile-stat-divider"></div>
+              <div class="profile-stat">
+                <strong>—</strong>
+                <span>Followers</span>
+              </div>
+              <div class="profile-stat-divider"></div>
+              <div class="profile-stat">
+                <strong>—</strong>
+                <span>Following</span>
+              </div>
+            </div>
+            <div class="profile-posts-grid" id="my-posts-grid"></div>
+            <div class="empty-state" id="my-posts-empty" style="height:200px">
+              <i class="fas fa-images"></i>
+              <h3>No posts yet</h3>
+              <p>Share your first photo!</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── OTHER USER PROFILE ────────────────────────────────────────── -->
+        <section id="view-other-profile" class="view">
+          <div class="profile-page">
+            <div class="other-profile-back">
+              <button class="back-btn" onclick="navigate('search')"><i class="fas fa-arrow-left"></i></button>
+            </div>
+            <div class="profile-hero">
+              <div class="profile-avatar-wrap no-edit">
+                <img id="other-profile-avatar" src="" alt="Avatar" onerror="this.src='https://ui-avatars.com/api/?background=7c6eff&color=fff&name=U&size=128'">
+              </div>
+              <h2 id="other-profile-username">Username</h2>
+            </div>
+            <div class="profile-stats-bar">
+              <div class="profile-stat">
+                <strong id="other-post-count">0</strong>
+                <span>Posts</span>
+              </div>
+              <div class="profile-stat-divider"></div>
+              <div class="profile-stat">
+                <strong>—</strong>
+                <span>Followers</span>
+              </div>
+              <div class="profile-stat-divider"></div>
+              <div class="profile-stat">
+                <strong>—</strong>
+                <span>Following</span>
+              </div>
+            </div>
+            <button class="profile-message-btn" id="other-profile-msg-btn" onclick="startChatFromProfile()">
+              <i class="fas fa-paper-plane"></i> Message
+            </button>
+            <div class="profile-posts-grid" id="other-posts-grid"></div>
+            <div class="empty-state" id="other-posts-empty" style="height:200px">
+              <i class="fas fa-images"></i>
+              <h3>No posts yet</h3>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── SETTINGS ──────────────────────────────────────────────── -->
+        <section id="view-settings" class="view">
+          <div class="settings-container">
+            <!-- Profile Card -->
+            <div class="settings-profile-card glass">
+              <div class="settings-avatar-wrap" onclick="triggerAvatarUpload()">
+                <img id="settings-avatar" src="" alt="Avatar" onerror="this.src='https://ui-avatars.com/api/?background=6c63ff&color=fff&name=U'">
+                <div class="avatar-overlay"><i class="fas fa-camera"></i></div>
+              </div>
+              <input type="file" id="avatar-upload-input" accept="image/*" style="display:none" onchange="handleAvatarUpload(this)">
+              <div>
+                <h3 id="settings-username">Username</h3>
+                <p id="settings-email-display" class="settings-email"></p>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h4 class="settings-label">Appearance</h4>
+              <div class="settings-item" onclick="toggleTheme()">
+                <div class="settings-item-left">
+                  <div class="settings-icon"><i class="fas fa-moon" id="theme-icon"></i></div>
+                  <div>
+                    <span class="settings-item-title">Dark Mode</span>
+                    <small>Switch between dark and light</small>
+                  </div>
+                </div>
+                <div class="toggle-switch" id="theme-toggle">
+                  <div class="toggle-knob"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h4 class="settings-label">Account</h4>
+              <div class="settings-item" onclick="goCreateAccount()">
+                <div class="settings-item-left">
+                  <div class="settings-icon accent"><i class="fas fa-user-plus"></i></div>
+                  <div>
+                    <span class="settings-item-title">Create New Account</span>
+                    <small>Register a different account</small>
+                  </div>
+                </div>
+                <i class="fas fa-chevron-right settings-arrow"></i>
+              </div>
+              <div class="settings-item" onclick="goSwitchAccount()">
+                <div class="settings-item-left">
+                  <div class="settings-icon green"><i class="fas fa-exchange-alt"></i></div>
+                  <div>
+                    <span class="settings-item-title">Log Into Other Account</span>
+                    <small>Switch to a different account</small>
+                  </div>
+                </div>
+                <i class="fas fa-chevron-right settings-arrow"></i>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-item danger" onclick="handleLogout()">
+                <div class="settings-item-left">
+                  <div class="settings-icon red"><i class="fas fa-sign-out-alt"></i></div>
+                  <div>
+                    <span class="settings-item-title">Log Out</span>
+                    <small>Sign out of this account</small>
+                  </div>
+                </div>
+                <i class="fas fa-chevron-right settings-arrow"></i>
+              </div>
+            </div>
+
+            <p class="settings-version">EasyChat v1.0</p>
+          </div>
+        </section>
+
+      </main>
+
+      <!-- CHAT ROOM (slide in/out) -->
+      <div id="chat-room" class="chat-room hidden">
+        <header class="chat-header glass">
+          <button class="back-btn" onclick="closeChat()"><i class="fas fa-arrow-left"></i></button>
+          <img id="chat-header-pic" src="" alt="" class="chat-header-avatar" onerror="this.src='https://ui-avatars.com/api/?background=6c63ff&color=fff&name=U'">
+          <div class="chat-header-info">
+            <h3 id="chat-header-name">User</h3>
+            <span id="chat-status" class="chat-status-dot"></span>
+          </div>
+        </header>
+        <div id="chat-messages" class="chat-messages"></div>
+        <div id="typing-indicator" class="typing-indicator hidden">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="chat-input-bar glass">
+          <label for="chat-image-input" class="icon-btn" title="Send image">
+            <i class="fas fa-image"></i>
+          </label>
+          <input type="file" id="chat-image-input" accept="image/*" style="display:none" onchange="handleChatImageUpload(this)">
+          <input type="text" id="msg-input" placeholder="Message…" onkeydown="handleMsgKey(event)" oninput="handleTyping()">
+          <button class="send-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
         </div>
       </div>
 
-      <!-- Search View -->
-      <div id="search-view" class="tab-view">
-        <div class="search-container">
-          <input type="text" id="search-input" placeholder="Search users...">
-          <div id="search-results"></div>
-        </div>
-      </div>
-
-      <!-- Profile View -->
-      <div id="profile-view" class="tab-view">
-        <div class="profile-container">
-          <img id="my-profile-pic" src="profile-pic.png" alt="Profile" class="profile-avatar large" onerror="this.src='https://via.placeholder.com/150'">
-          <h2 id="my-username">Username</h2>
-          <div class="profile-stats">
-            <div><strong>0</strong> Posts</div>
-            <div><strong>0</strong> Followers</div>
-            <div><strong>0</strong> Following</div>
+      <!-- COMMENTS MODAL -->
+      <div id="comments-modal" class="modal-backdrop hidden" onclick="closeCommentsIfOutside(event)">
+        <div class="comments-modal glass">
+          <div class="comments-header">
+            <h3>Comments</h3>
+            <button onclick="closeComments()"><i class="fas fa-times"></i></button>
+          </div>
+          <div id="comments-list" class="comments-list"></div>
+          <div class="comments-input-bar">
+            <input type="text" id="comment-input" placeholder="Add a comment…" onkeydown="handleCommentKey(event)">
+            <button onclick="submitComment()"><i class="fas fa-paper-plane"></i></button>
           </div>
         </div>
       </div>
 
-      <!-- Other User Profile View -->
-      <div id="other-profile-view" class="tab-view">
-        <div class="profile-container">
-          <button class="back-btn" onclick="showTab('search-view')"><i class="fas fa-arrow-left"></i> Back</button>
-          <img id="other-profile-pic" src="profile-pic.png" alt="Profile" class="profile-avatar large" onerror="this.src='https://via.placeholder.com/150'">
-          <h2 id="other-username">Username</h2>
-          <button id="message-user-btn" class="primary-btn message-btn">Message</button>
-        </div>
-      </div>
+      <!-- BOTTOM NAV -->
+      <nav class="bottom-nav glass" id="bottom-nav">
+        <button class="nav-btn active" id="nav-home" onclick="navigate('home')" title="Home">
+          <i class="fas fa-house"></i>
+          <span>Home</span>
+        </button>
+        <button class="nav-btn" id="nav-search" onclick="navigate('search')" title="Search">
+          <i class="fas fa-magnifying-glass"></i>
+          <span>Search</span>
+        </button>
+        <button class="nav-btn" id="nav-posts" onclick="navigate('posts')" title="Posts">
+          <div class="nav-p-badge"></div>
+          <span>Posts</span>
+        </button>
+        <button class="nav-btn" id="nav-profile" onclick="navigate('profile')" title="Profile">
+          <i class="fas fa-circle-user"></i>
+          <span>Profile</span>
+        </button>
+        <button class="nav-btn" id="nav-settings" onclick="navigate('settings')" title="Settings">
+          <i class="fas fa-gear"></i>
+          <span>Settings</span>
+        </button>
+      </nav>
 
-    </main>
-
-    <!-- Chat Room Modal/View -->
-    <div id="chat-room" class="chat-room">
-      <header class="chat-header glass">
-        <button class="back-btn" id="close-chat-btn"><i class="fas fa-arrow-left"></i></button>
-        <img id="chat-header-pic" src="profile-pic.png" class="profile-avatar small" onerror="this.src='https://via.placeholder.com/150'">
-        <h3 id="chat-header-name">User</h3>
-      </header>
-      
-      <div class="chat-messages" id="chat-messages">
-        <!-- Messages injected here -->
-      </div>
-      
-      <div class="chat-input-area glass">
-        <label for="image-upload" class="icon-btn">
-          <i class="fas fa-image"></i>
-        </label>
-        <input type="file" id="image-upload" accept="image/*" style="display: none;">
-        <input type="text" id="message-input" placeholder="Message...">
-        <button id="send-btn" class="icon-btn send-btn"><i class="fas fa-paper-plane"></i></button>
-      </div>
     </div>
-
-    <!-- Bottom Navigation -->
-    <nav class="bottom-nav glass">
-      <button class="nav-btn" onclick="showTab('profile-view')">
-        <i class="fas fa-user"></i>
-      </button>
-      <button class="nav-btn active" onclick="showTab('messages-view')">
-        <i class="fas fa-comment"></i>
-      </button>
-      <button class="nav-btn" onclick="showTab('search-view')">
-        <i class="fas fa-search"></i>
-      </button>
-    </nav>
   </div>
 
+  <!-- Toast notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
