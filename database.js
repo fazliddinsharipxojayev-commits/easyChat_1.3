@@ -1,5 +1,11 @@
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./easychat.db');
+const path = require('path');
+const fs = require('fs');
+
+// Vercel is serverless and read-only. We use /tmp for the database.
+// NOTE: Data will reset when the function sleeps. 
+const dbPath = process.env.VERCEL ? '/tmp/easychat.db' : './easychat.db';
+const db = new sqlite3.Database(dbPath);
 
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS users (
