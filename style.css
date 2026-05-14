@@ -45,14 +45,15 @@ img{display:block;object-fit:cover}
 a{color:var(--accent);text-decoration:none}
 
 /* Animated Background for PC */
-.pc-bg-decor{position:fixed;inset:0;z-index:-1;display:none;overflow:hidden}
+.pc-bg-decor{position:absolute;inset:0;z-index:0;display:none;overflow:hidden;pointer-events:none}
 .mode-pc .pc-bg-decor{display:block}
-.orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:0.4;animation:float 20s infinite alternate}
-.orb-1{width:400px;height:400px;background:var(--accent);top:-100px;left:-100px;animation-delay:0s}
-.orb-2{width:350px;height:350px;background:var(--accent2);bottom:-50px;right:-50px;animation-delay:-5s}
+.orb{position:absolute;border-radius:50%;filter:blur(100px);opacity:0.5;animation:float 20s infinite alternate}
+.orb-1{width:500px;height:500px;background:var(--accent);top:-150px;left:-150px;animation-delay:0s}
+.orb-2{width:450px;height:450px;background:var(--accent2);bottom:-100px;right:-100px;animation-delay:-5s}
+.orb-3{width:300px;height:300px;background:var(--accent);top:50%;left:50%;transform:translate(-50%, -50%);opacity:0.2;animation-duration:30s}
 @keyframes float{
-  0%{transform:translate(0,0) rotate(0deg)}
-  100%{transform:translate(100px,50px) rotate(90deg)}
+  0%{transform:translate(0,0) scale(1)}
+  100%{transform:translate(150px,80px) scale(1.1)}
 }
 
 /* ─── UTILITIES ─────────────────────────────────────────────── */
@@ -101,7 +102,7 @@ a{color:var(--accent);text-decoration:none}
 @media (min-height: 700px) and (min-width: 500px) {
   #app.mode-mobile #app-inner{width:390px;height:844px;border-radius:40px;border:1px solid var(--border);box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 10px var(--bg2)}
 }
-#app.mode-pc #app-inner{width:100%;max-width:900px;height:100vh;border-radius:0;box-shadow: 0 0 100px rgba(0,0,0,0.5);border-left: 1px solid var(--border);border-right: 1px solid var(--border)}
+#app.mode-pc #app-inner{width:100%;max-width:900px;height:100vh;border-radius:0;box-shadow: 0 0 100px rgba(0,0,0,0.5);border-left: 1px solid var(--border);border-right: 1px solid var(--border);position:relative;z-index:1}
 #app-inner{position:relative;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
 
 /* ─── TOP BAR ───────────────────────────────────────────────── */
