@@ -57,13 +57,14 @@ a{color:var(--accent);text-decoration:none}
 }
 
 /* Internal Glows for App Content */
-.app-bg-decor{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none;opacity:0.3}
-.inner-orb{position:absolute;border-radius:50%;filter:blur(60px);animation:floatInner 15s infinite alternate}
-.inner-orb-1{width:200px;height:200px;background:var(--accent);top:10%;left:-50px;animation-delay:0s}
-.inner-orb-2{width:180px;height:180px;background:var(--accent2);bottom:20%;right:-40px;animation-delay:-7s}
+.app-bg-decor{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none;opacity:0.6}
+.inner-orb{position:absolute;border-radius:50%;filter:blur(50px);animation:floatInner 12s infinite alternate}
+.inner-orb-1{width:250px;height:250px;background:var(--accent);top:5%;left:-30px;animation-delay:0s;opacity:0.8}
+.inner-orb-2{width:220px;height:220px;background:var(--accent2);bottom:15%;right:-30px;animation-delay:-4s;opacity:0.7}
+.inner-orb-3{width:180px;height:180px;background:#ff87eb;top:40%;right:-50px;animation-delay:-8s;opacity:0.5}
 @keyframes floatInner{
-  0%{transform:translate(0,0)}
-  100%{transform:translate(40px,60px)}
+  0%{transform:translate(0,0) rotate(0deg)}
+  100%{transform:translate(60px,100px) rotate(45deg)}
 }
 
 /* View Transitions */

@@ -217,7 +217,7 @@ function navigate(tab) {
   if (tab === 'home') { loadChats(); loadSuggestedUsers(); }
   if (tab === 'search') {
     document.getElementById('search-input').focus();
-    clearSearch();
+    loadSearchSuggestions();
   }
   if (tab === 'posts') loadPosts();
   if (tab === 'profile') loadMyProfile();
@@ -546,11 +546,33 @@ function triggerAvatarUploadProfile() {
   document.getElementById('avatar-upload-profile').click();
 }
 
+async function loadSearchSuggestions() {
+  const container = document.getElementById('search-results');
+  container.innerHTML = '';
+  const q = document.getElementById('search-input').value.trim();
+  if (q.length > 0) return; // Don't show suggestions if user is typing
+
+  try {
+    const users = await get(`/api/users/search?q=a&currentUserId=${currentUser.userId}`);
+    // Show 5 random users
+    const suggested = users.sort(() => 0.5 - Math.random()).slice(0, 5);
+    
+    if (suggested.length > 0) {
+      const label = document.createElement('div');
+      label.className = 'suggested-label';
+      label.style.padding = '0 12px 10px';
+      label.innerHTML = `<span>People you may know</span>`;
+      container.appendChild(label);
+      renderSearchResults(suggested);
+    }
+  } catch(e) { console.error(e); }
+}
+
 function clearSearch() {
   document.getElementById('search-input').value = '';
   document.getElementById('search-results').innerHTML = '';
   document.getElementById('clear-search').classList.add('hidden');
-  show('search-empty');
+  loadSearchSuggestions();
 }
 
 /* ─── POSTS ──────────────────────────────────────────────────── */
