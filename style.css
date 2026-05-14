@@ -56,6 +56,23 @@ a{color:var(--accent);text-decoration:none}
   100%{transform:translate(150px,80px) scale(1.1)}
 }
 
+/* Internal Glows for App Content */
+.app-bg-decor{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none;opacity:0.3}
+.inner-orb{position:absolute;border-radius:50%;filter:blur(60px);animation:floatInner 15s infinite alternate}
+.inner-orb-1{width:200px;height:200px;background:var(--accent);top:10%;left:-50px;animation-delay:0s}
+.inner-orb-2{width:180px;height:180px;background:var(--accent2);bottom:20%;right:-40px;animation-delay:-7s}
+@keyframes floatInner{
+  0%{transform:translate(0,0)}
+  100%{transform:translate(40px,60px)}
+}
+
+/* View Transitions */
+.view{display:none;height:100%;animation:viewFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1)}
+@keyframes viewFadeIn{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
 /* ─── UTILITIES ─────────────────────────────────────────────── */
 .hidden{display:none!important}
 .glass{background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--glass-border)}
@@ -124,15 +141,19 @@ a{color:var(--accent);text-decoration:none}
 
 /* ─── EMPTY STATE ───────────────────────────────────────────── */
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--text3);padding:40px;text-align:center}
-.empty-state i{font-size:48px;color:var(--bg3)}
+.empty-state i{font-size:48px;color:var(--bg3);animation:iconFloat 3s ease-in-out infinite}
+@keyframes iconFloat{
+  0%, 100%{transform:translateY(0)}
+  50%{transform:translateY(-15px)}
+}
 .empty-state h3{font-size:17px;font-weight:600;color:var(--text2)}
 .empty-state p{font-size:13px}
 
 /* ─── CHAT LIST ─────────────────────────────────────────────── */
 .chat-list{padding:8px}
-.chat-item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;cursor:pointer;transition:background .15s;position:relative}
-.chat-item:hover{background:var(--bg3)}
-.chat-item:active{background:var(--bg2)}
+.chat-item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;cursor:pointer;transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);position:relative}
+.chat-item:hover{background:var(--bg3);transform:scale(1.02)}
+.chat-item:active{background:var(--bg2);transform:scale(0.98)}
 .chat-avatar{width:50px;height:50px;border-radius:50%;flex-shrink:0;background:var(--bg3);position:relative}
 .chat-avatar img{width:100%;height:100%;border-radius:50%}
 .online-dot{position:absolute;bottom:2px;right:2px;width:11px;height:11px;background:var(--success);border-radius:50%;border:2px solid var(--bg)}
