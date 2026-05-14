@@ -11,10 +11,37 @@ let activeTab = 'home';
 let typingTimer = null;
 let activePostId = null;      // for comments modal
 let onlineUserIds = [];
+let currentLang = 'en';
+
+const i18n = {
+  en: {
+    suggested: 'Suggested for you',
+    dark_mode: 'Dark Mode',
+    theme_desc: 'Switch between dark and light',
+    language: 'Language',
+    chats: 'Chats',
+    search: 'Search',
+    posts: 'Posts',
+    profile: 'My Profile',
+    settings: 'Settings'
+  },
+  uz: {
+    suggested: 'Siz uchun tavsiyalar',
+    dark_mode: 'Tungi rejim',
+    theme_desc: 'Yorug\' va tungi rejimni almashtirish',
+    language: 'Til',
+    chats: 'Chatlar',
+    search: 'Qidiruv',
+    posts: 'Postlar',
+    profile: 'Mening profilim',
+    settings: 'Sozlamalar'
+  }
+};
 
 /* ─── INIT ──────────────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', () => {
   applyStoredTheme();
+  applyStoredLang();
 
   const device = localStorage.getItem('ec_device');
   if (device) {
@@ -177,11 +204,17 @@ function navigate(tab) {
   if (btn) btn.classList.add('active');
 
   // Top bar title + actions
-  const titles = { home: 'Chats', search: 'Search', posts: 'Posts', profile: 'My Profile', settings: 'Settings' };
+  const titles = { 
+    home: t('chats'), 
+    search: t('search'), 
+    posts: t('posts'), 
+    profile: t('profile'), 
+    settings: t('settings') 
+  };
   document.getElementById('top-title').textContent = titles[tab] || '';
   renderTopActions(tab);
 
-  if (tab === 'home') loadChats();
+  if (tab === 'home') { loadChats(); loadSuggestedUsers(); }
   if (tab === 'search') {
     document.getElementById('search-input').focus();
     clearSearch();
@@ -210,7 +243,12 @@ async function loadChats() {
     const list = document.getElementById('chat-list');
     const empty = document.getElementById('chats-empty');
     list.innerHTML = '';
-    if (!chats.length) { show('chats-empty'); return; }
+    
+    if (!chats.length) { 
+      show('chats-empty'); 
+      return; 
+    }
+    
     hide('chats-empty');
     chats.forEach(c => {
       const isOnline = onlineUserIds.includes(String(c.other_user_id));
@@ -230,6 +268,41 @@ async function loadChats() {
       list.appendChild(li);
     });
   } catch(e) { console.error(e); }
+}
+
+async function loadSuggestedUsers() {
+  const container = document.getElementById('suggested-list');
+  container.innerHTML = '';
+  try {
+    const users = await get(`/api/users/search?q=a&currentUserId=${currentUser.userId}`);
+    const suggested = users.sort(() => 0.5 - Math.random()).slice(0, 3);
+    suggested.forEach(u => {
+      const div = document.createElement('div');
+      div.className = 'user-item';
+      div.innerHTML = `
+        <div class="user-avatar" onclick="viewOtherProfile(${u.id},'${esc(u.username)}','${u.profilePic||''}')" style="cursor:pointer">
+          <img src="${avatarSrc(u.profilePic, u.username)}" alt="${u.username}">
+        </div>
+        <div class="user-info" onclick="viewOtherProfile(${u.id},'${esc(u.username)}','${u.profilePic||''}')" style="cursor:pointer">
+          <strong>${esc(u.username)}</strong>
+          <small>Suggestion</small>
+        </div>
+        <button class="msg-user-btn" onclick="startChatWith(${u.id},'${esc(u.username)}','${u.profilePic||''}')">
+          <i class="fas fa-paper-plane"></i>
+        </button>`;
+      container.appendChild(div);
+    });
+  } catch(e) { console.error(e); }
+}
+
+function handleHomeSearch() {
+  const q = document.getElementById('home-search-input').value.trim();
+  if (q.length > 0) {
+    navigate('search');
+    const searchInput = document.getElementById('search-input');
+    searchInput.value = q;
+    handleSearch();
+  }
 }
 
 function updateOnlineStatus() {
@@ -287,6 +360,8 @@ function appendMessage(msg) {
   const isMe = String(msg.sender_id) === String(currentUser.userId);
   wrap.className = `msg-wrap ${isMe ? 'me' : 'them'}`;
 
+  const avatar = `<img class="msg-avatar" src="${isMe ? avatarSrc(currentUser.profilePic, currentUser.username) : avatarSrc(currentChat.otherUser.profilePic, currentChat.otherUser.username)}" alt="avatar">`;
+
   let content = '';
   if (msg.type === 'image') {
     content = `<img class="msg-image" src="${msg.content}" alt="image" onclick="openImageFull('${msg.content}')">`;
@@ -295,8 +370,11 @@ function appendMessage(msg) {
   }
 
   wrap.innerHTML = `
-    ${content}
-    <span class="msg-time">${formatTime(msg.created_at)}</span>`;
+    ${avatar}
+    <div class="msg-content-wrap">
+      ${content}
+      <span class="msg-time">${formatTime(msg.created_at)}</span>
+    </div>`;
   document.getElementById('chat-messages').appendChild(wrap);
 }
 
@@ -673,6 +751,34 @@ function toggleTheme() {
   toggle.classList.toggle('on', isLight);
   icon.className = isLight ? 'fas fa-sun' : 'fas fa-moon';
   localStorage.setItem('ec_theme', isLight ? 'light' : 'dark');
+}
+
+/* ─── LANGUAGE ───────────────────────────────────────────────── */
+function applyStoredLang() {
+  const lang = localStorage.getItem('ec_lang') || 'en';
+  changeLanguage(lang);
+  const select = document.getElementById('lang-select');
+  if (select) select.value = lang;
+}
+
+function changeLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem('ec_lang', lang);
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const key = el.getAttribute('data-t');
+    el.textContent = t(key);
+  });
+  
+  // Update nav labels
+  document.querySelector('#nav-home span').textContent = t('chats');
+  document.querySelector('#nav-search span').textContent = t('search');
+  document.querySelector('#nav-posts span').textContent = t('posts');
+  document.querySelector('#nav-profile span').textContent = t('profile');
+  document.querySelector('#nav-settings span').textContent = t('settings');
+}
+
+function t(key) {
+  return i18n[currentLang][key] || key;
 }
 
 /* ─── PASSWORD TOGGLE ────────────────────────────────────────── */

@@ -11,6 +11,11 @@
 </head>
 <body class="dark-mode">
 
+  <div class="pc-bg-decor">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+  </div>
+
   <!-- ═══════════════════════════════════════════
        DEVICE SELECTION OVERLAY
   ═══════════════════════════════════════════ -->
@@ -115,12 +120,24 @@
 
         <!-- ── HOME (Chats List) ─────────────────────── -->
         <section id="view-home" class="view active">
-          <div class="empty-state" id="chats-empty">
+          <div class="search-bar-wrap">
+            <div class="search-bar">
+              <i class="fas fa-search"></i>
+              <input type="text" id="home-search-input" placeholder="Search people..." oninput="handleHomeSearch()">
+            </div>
+          </div>
+          <div class="chat-list" id="chat-list"></div>
+          <div class="empty-state hidden" id="chats-empty">
             <i class="fas fa-comment-dots"></i>
             <h3>No conversations yet</h3>
-            <p>Search for users to start chatting</p>
+            <p>Start a new chat below</p>
           </div>
-          <ul class="chat-list" id="chat-list"></ul>
+          <div id="suggested-container" class="suggested-section">
+            <div class="suggested-label">
+              <span data-t="suggested">Suggested for you</span>
+            </div>
+            <div id="suggested-list" class="suggested-list"></div>
+          </div>
         </section>
 
         <!-- ── SEARCH ───────────────────────────────── -->
@@ -254,13 +271,26 @@
                 <div class="settings-item-left">
                   <div class="settings-icon"><i class="fas fa-moon" id="theme-icon"></i></div>
                   <div>
-                    <span class="settings-item-title">Dark Mode</span>
-                    <small>Switch between dark and light</small>
+                    <span class="settings-item-title" data-t="dark_mode">Dark Mode</span>
+                    <small data-t="theme_desc">Switch between dark and light</small>
                   </div>
                 </div>
                 <div class="toggle-switch" id="theme-toggle">
                   <div class="toggle-knob"></div>
                 </div>
+              </div>
+              <div class="settings-item">
+                <div class="settings-item-left">
+                  <div class="settings-icon"><i class="fas fa-language"></i></div>
+                  <div>
+                    <span class="settings-item-title" data-t="language">Language</span>
+                    <small>O'zbek / English</small>
+                  </div>
+                </div>
+                <select class="lang-select" id="lang-select" onchange="changeLanguage(this.value)">
+                  <option value="en">English</option>
+                  <option value="uz">O'zbek</option>
+                </select>
               </div>
             </div>
 
