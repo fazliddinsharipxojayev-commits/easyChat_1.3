@@ -390,6 +390,17 @@
         </div>
       </div>
 
+      <!-- FORWARD MODAL -->
+      <div id="forward-modal" class="modal-overlay hidden" onclick="closeForwardIfOutside(event)">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 data-t="send_to">Send to...</h3>
+            <button class="modal-close" onclick="closeForward()"><i class="fas fa-times"></i></button>
+          </div>
+          <div id="forward-list" class="forward-list-container"></div>
+        </div>
+      </div>
+
       <!-- BOTTOM NAV -->
       <nav class="bottom-nav glass" id="bottom-nav">
         <button class="nav-btn active" id="nav-home" onclick="navigate('home')" title="Home">

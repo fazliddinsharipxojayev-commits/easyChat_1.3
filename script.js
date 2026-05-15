@@ -379,6 +379,8 @@ async function openChat(chatId, otherUser) {
   document.getElementById('chat-header-name').textContent = otherUser.username;
   const pic = document.getElementById('chat-header-pic');
   pic.src = avatarSrc(otherUser.profilePic, otherUser.username);
+  pic.onclick = () => { closeChat(); viewOtherProfile(otherUser.userId, esc(otherUser.username), otherUser.profilePic); };
+  pic.style.cursor = 'pointer';
 
   const statusEl = document.getElementById('chat-status');
   const isOnline = onlineUserIds.includes(String(otherUser.userId));
@@ -768,21 +770,51 @@ function buildPostCard(p) {
       <button class="post-action-btn post-comment-btn" onclick="openComments(${p.id})">
         <i class="fas fa-comment"></i> <span id="comments-count-${p.id}">${p.comment_count}</span>
       </button>
-      <button class="post-action-btn" onclick="copyPostLink(${p.id})" style="margin-left:auto">
-        <i class="fas fa-link"></i>
+      <button class="post-action-btn" onclick="openForwardModal(${p.id})" style="margin-left:auto">
+        <i class="fas fa-paper-plane"></i>
       </button>
     </div>
     ${p.caption ? `<div class="post-caption"><strong>${esc(p.username)}</strong>${esc(p.caption)}</div>` : ''}`;
   return div;
 }
 
-function copyPostLink(postId) {
-  const url = `${window.location.origin}/?post=${postId}`;
-  navigator.clipboard.writeText(url).then(() => {
-    toast('Link copied!', 'success');
-  }).catch(() => {
-    toast('Failed to copy', 'error');
-  });
+let activeForwardPostId = null;
+async function openForwardModal(postId) {
+  activeForwardPostId = postId;
+  show('forward-modal');
+  const list = document.getElementById('forward-list');
+  list.innerHTML = '';
+  try {
+    const chats = await get(`/api/chats/${currentUser.userId}`);
+    if (!chats.length) {
+      list.innerHTML = `<div style="text-align:center;color:var(--text3);padding:20px">No active chats to forward to.</div>`;
+      return;
+    }
+    chats.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'user-item';
+      div.innerHTML = `
+        <div class="user-avatar">
+          <img src="${avatarSrc(c.profilePic, c.username)}" alt="${c.username}">
+        </div>
+        <div class="user-info">
+          <strong>${esc(c.username)}</strong>
+        </div>
+        <button class="forward-send-btn" onclick="forwardPostToChat(${c.chat_id}, ${c.other_user_id})">Send</button>`;
+      list.appendChild(div);
+    });
+  } catch(e) { console.error(e); }
+}
+
+function closeForward() { hide('forward-modal'); }
+function closeForwardIfOutside(e) { if (e.target.id === 'forward-modal') closeForward(); }
+
+function forwardPostToChat(chatId, otherUserId) {
+  if (!activeForwardPostId || !socket) return;
+  const link = `${window.location.origin}/?post=${activeForwardPostId}`;
+  socket.emit('sendMessage', { chatId, senderId: currentUser.userId, content: link, type: 'text' });
+  closeForward();
+  toast('Post sent!', 'success');
 }
 
 function triggerPostUpload() {
