@@ -92,7 +92,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const device = localStorage.getItem('ec_device');
   if (device) {
     applyDevice(device);
-    checkSession();
+    // Force login every time by not calling checkSession() automatically
+    // or by clearing the stored user session on load.
+    localStorage.removeItem('ec_user'); 
+    show('view-auth'); 
   } else {
     show('device-overlay');
   }
@@ -1138,7 +1141,6 @@ function showInAppNotification(username) {
   const el = document.getElementById('in-app-notif');
   const text = document.getElementById('notif-text');
   text.textContent = `${username} sent u a message`;
-  el.classList.remove('hidden');
   
   // Reset animation
   el.classList.remove('show');
@@ -1148,9 +1150,6 @@ function showInAppNotification(username) {
   clearTimeout(notifTimer);
   notifTimer = setTimeout(() => {
     el.classList.remove('show');
-    setTimeout(() => {
-      if (!el.classList.contains('show')) el.classList.add('hidden');
-    }, 400);
   }, 2500);
 }
 
