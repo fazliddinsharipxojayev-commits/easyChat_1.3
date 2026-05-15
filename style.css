@@ -358,7 +358,8 @@ a{color:var(--accent);text-decoration:none}
 
 /* ─── MODALS ────────────────────────────────────────────────── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;align-items:flex-end;justify-content:center}
-.modal-content{width:100%;max-width:450px;background:var(--bg2);border-top-left-radius:24px;border-top-right-radius:24px;display:flex;flex-direction:column;animation:slideUp .3s cubic-bezier(0.4, 0, 0.2, 1); max-height:85vh;}
+.modal-content{width:100%;max-width:450px;background:var(--bg2);border-top-left-radius:24px;border-top-right-radius:24px;display:flex;flex-direction:column;animation:slideUp .3s cubic-bezier(0.4, 0, 0.2, 1); max-height:85vh; border: 1px solid var(--border);}
+.modal-content.comments-modal{background: rgba(22, 22, 30, 0.7); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border-top: 1px solid rgba(255,255,255,0.15);}
 #app.mode-pc .modal-content{max-width:600px;border-radius:24px;margin-bottom:auto;margin-top:auto;animation:popIn .3s cubic-bezier(0.4, 0, 0.2, 1)}
 
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -379,4 +380,55 @@ a{color:var(--accent);text-decoration:none}
 .forward-list-container{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
 .forward-send-btn{padding:8px 16px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:12px;font-weight:700;transition:all .2s;border:none;cursor:pointer}
 .forward-send-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px var(--accent-glow)}
+
+/* ─── IN-APP NOTIFICATION ────────────────────────────────────── */
+.in-app-notif {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100px);
+  z-index: 9999;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 40px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  font-weight: 600;
+  font-size: 14px;
+}
+.in-app-notif.show {
+  transform: translateX(-50%) translateY(0);
+}
+.notif-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ─── FORWARDED POST UI ───────────────────────────────────────── */
+.fwd-poster-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+.fwd-poster-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg3);
+}
+.fwd-poster-info {
+  font-size: 11px;
+  color: var(--text2);
+}
+.fwd-poster-info strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
 

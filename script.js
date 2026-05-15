@@ -233,6 +233,9 @@ function initSocket() {
     if (currentChat && msg.chat_id === currentChat.chatId) {
       appendMessage(msg);
       scrollMessages();
+    } else {
+      // Show in-app notification if message is from someone else
+      showInAppNotification(msg.sender_name || 'Someone');
     }
     loadChats(); // refresh chat list preview
   });
@@ -425,7 +428,21 @@ function appendMessage(msg) {
 
   let content = '';
   if (msg.type === 'image') {
-    content = `<img class="msg-image" src="${msg.content}" alt="image" onclick="openImageFull('${msg.content}')">`;
+    if (msg.content.startsWith('FWD:')) {
+      const parts = msg.content.substring(4).split('|');
+      const url = parts[0];
+      const posterId = parts[1];
+      const posterName = parts[2];
+      const posterPic = parts[3];
+      content = `
+        <img class="msg-image" src="${url}" alt="image" onclick="openImageFull('${url}')">
+        <div class="fwd-poster-wrap" onclick="viewOtherProfile(${posterId},'${esc(posterName)}','${posterPic}')">
+          <img class="fwd-poster-avatar" src="${avatarSrc(posterPic, posterName)}" alt="poster">
+          <div class="fwd-poster-info">By <strong>${esc(posterName)}</strong></div>
+        </div>`;
+    } else {
+      content = `<img class="msg-image" src="${msg.content}" alt="image" onclick="openImageFull('${msg.content}')">`;
+    }
   } else {
     content = `<div class="msg-bubble">${esc(msg.content)}</div>`;
   }
@@ -433,7 +450,9 @@ function appendMessage(msg) {
   wrap.innerHTML = `
     ${avatar}
     <div class="msg-content-wrap">
-      ${content}
+      <div class="msg-bubble-container">
+        ${content}
+      </div>
       <span class="msg-time">${formatTime(msg.created_at)}</span>
     </div>`;
   document.getElementById('chat-messages').appendChild(wrap);
@@ -770,7 +789,7 @@ function buildPostCard(p) {
       <button class="post-action-btn post-comment-btn" onclick="openComments(${p.id})">
         <i class="fas fa-comment"></i> <span id="comments-count-${p.id}">${p.comment_count}</span>
       </button>
-      <button class="post-action-btn" onclick="openForwardModal(${p.id}, '${p.image_url}')" style="margin-left:auto">
+      <button class="post-action-btn" onclick="openForwardModal(${p.id}, '${p.image_url}', ${p.user_id}, '${esc(p.username)}', '${p.profilePic||''}')" style="margin-left:auto">
         <i class="fas fa-paper-plane"></i>
       </button>
     </div>
@@ -778,9 +797,9 @@ function buildPostCard(p) {
   return div;
 }
 
-let activeForwardImageUrl = null;
-async function openForwardModal(postId, imageUrl) {
-  activeForwardImageUrl = imageUrl;
+let activeForwardData = null;
+async function openForwardModal(postId, imageUrl, posterId, posterName, posterPic) {
+  activeForwardData = { imageUrl, posterId, posterName, posterPic };
   show('forward-modal');
   const list = document.getElementById('forward-list');
   list.innerHTML = '';
@@ -810,8 +829,9 @@ function closeForward() { hide('forward-modal'); }
 function closeForwardIfOutside(e) { if (e.target.id === 'forward-modal') closeForward(); }
 
 function forwardPostToChat(chatId, otherUserId) {
-  if (!activeForwardImageUrl || !socket) return;
-  socket.emit('sendMessage', { chatId, senderId: currentUser.userId, content: activeForwardImageUrl, type: 'image' });
+  if (!activeForwardData || !socket) return;
+  const content = `FWD:${activeForwardData.imageUrl}|${activeForwardData.posterId}|${activeForwardData.posterName}|${activeForwardData.posterPic}`;
+  socket.emit('sendMessage', { chatId, senderId: currentUser.userId, content: content, type: 'image' });
   closeForward();
   toast('Post sent!', 'success');
 }
@@ -1039,7 +1059,9 @@ function esc(str) {
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
-  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  // Append UTC if not present to ensure correct parsing of SQLite timestamps
+  const cleanDate = dateStr.includes(' ') && !dateStr.includes('Z') ? dateStr + ' UTC' : dateStr;
+  const diff = (Date.now() - new Date(cleanDate).getTime()) / 1000;
   if (diff < 60) return 'now';
   if (diff < 3600) return `${Math.floor(diff/60)}m`;
   if (diff < 86400) return `${Math.floor(diff/3600)}h`;
@@ -1048,8 +1070,25 @@ function timeAgo(dateStr) {
 
 function formatTime(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const cleanDate = dateStr.includes(' ') && !dateStr.includes('Z') ? dateStr + ' UTC' : dateStr;
+  const d = new Date(cleanDate);
+  // Ensure we show the correct time by using toLocaleTimeString properly
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+let notifTimer;
+function showInAppNotification(username) {
+  const el = document.getElementById('in-app-notif');
+  const text = document.getElementById('notif-text');
+  text.textContent = `${username} sent u a message`;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('show'), 10);
+  
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.classList.add('hidden'), 400);
+  }, 2500);
 }
 
 function val(id) { return document.getElementById(id)?.value || ''; }
