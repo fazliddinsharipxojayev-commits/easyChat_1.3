@@ -96,11 +96,16 @@ window.addEventListener('DOMContentLoaded', () => {
   const device = localStorage.getItem('ec_device');
   if (device) {
     applyDevice(device);
-    showAuth('login');
+    checkSession();
   } else {
     show('device-overlay');
   }
 });
+
+function handleLogout() {
+  localStorage.removeItem('ec_user');
+  location.reload();
+}
 
 /* ─── DEVICE SELECTION ──────────────────────────────────────── */
 function selectDevice(type) {
@@ -206,20 +211,10 @@ function handleLogout() {
 }
 
 function goCreateAccount() {
-  if (socket) socket.disconnect();
-  currentUser = null;
-  localStorage.removeItem('ec_user');
-  closeChat();
-  closeComments();
   showAuth('register');
 }
 
 function goSwitchAccount() {
-  if (socket) socket.disconnect();
-  currentUser = null;
-  localStorage.removeItem('ec_user');
-  closeChat();
-  closeComments();
   showAuth('login');
 }
 
