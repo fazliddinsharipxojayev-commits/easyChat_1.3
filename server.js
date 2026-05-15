@@ -223,7 +223,17 @@ app.post('/api/chats/:id/delete', (req, res) => {
     }
     db.run(`UPDATE chats SET deleted_by = ? WHERE id = ?`, [deletedBy, chatId], err => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true });
+      // Also hide all current messages for this user
+      const msgDelSql = `UPDATE messages SET deleted_by = 
+        CASE 
+          WHEN deleted_by IS NULL OR deleted_by = '' THEN '|' || ? || '|'
+          WHEN deleted_by NOT LIKE '%|' || ? || '|%' THEN deleted_by || ? || '|'
+          ELSE deleted_by 
+        END
+        WHERE chat_id = ?`;
+      db.run(msgDelSql, [userId, userId, userId, chatId], (err2) => {
+        res.json({ success: true });
+      });
     });
   });
 });
@@ -406,8 +416,10 @@ io.on('connection', (socket) => {
       function(err) {
         if (err) return;
         const msgId = this.lastID;
-        db.run(`UPDATE chats SET last_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        // Update chat preview and UN-HIDE for everyone
+        db.run(`UPDATE chats SET last_message = ?, updated_at = CURRENT_TIMESTAMP, deleted_by = '' WHERE id = ?`,
           [type === 'image' ? '📷 Image' : content, chatId]);
+          
         db.get(`SELECT m.*, u.username as sender_name FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?`, [msgId], (err, msg) => {
           if (msg) io.to(`chat_${chatId}`).emit('receiveMessage', msg);
         });
