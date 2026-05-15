@@ -153,16 +153,16 @@
             </div>
           </div>
           <div class="chat-list" id="chat-list"></div>
+          <div id="home-suggestions" class="suggested-section hidden">
+            <div class="suggested-label">
+              <span data-t="suggested">People you may know</span>
+            </div>
+            <div id="home-suggestions-list" class="suggested-list"></div>
+          </div>
           <div class="empty-state hidden" id="chats-empty">
             <i class="fas fa-comment-dots"></i>
-            <h3>No conversations yet</h3>
-            <p>Start a new chat below</p>
-          </div>
-          <div id="suggested-container" class="suggested-section">
-            <div class="suggested-label">
-              <span data-t="suggested">Suggested for you</span>
-            </div>
-            <div id="suggested-list" class="suggested-list"></div>
+            <h3 data-t="no_chats">No conversations yet</h3>
+            <p data-t="no_chats_sub">Start a new chat below</p>
           </div>
         </section>
 
@@ -436,6 +436,9 @@
   <!-- Toast notification -->
   <div id="toast" class="toast hidden"></div>
 
+  <input type="file" id="post-image-input" class="hidden" accept="image/*" onchange="handlePostUpload(this)">
+  <input type="file" id="chat-image-input" class="hidden" accept="image/*" onchange="handleChatImageUpload(this)">
+  
   <script src="/socket.io/socket.io.js"></script>
   <script src="script.js?v=3"></script>
 </body>

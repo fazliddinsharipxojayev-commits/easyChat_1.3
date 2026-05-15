@@ -285,7 +285,7 @@ function navigate(tab) {
   document.getElementById('top-title').textContent = titles[tab] || '';
   renderTopActions(tab);
 
-  if (tab === 'home') { loadChats(); loadSuggestedUsers(); }
+  if (tab === 'home') { loadChats(); }
   if (tab === 'search') {
     document.getElementById('search-input').focus();
     loadSearchSuggestions();
@@ -317,10 +317,12 @@ async function loadChats() {
     
     if (!chats.length) { 
       show('chats-empty'); 
+      loadSuggestedUsers();
       return; 
     }
     
     hide('chats-empty');
+    hide('home-suggestions');
     chats.forEach(c => {
       const isOnline = onlineUserIds.includes(String(c.other_user_id));
       const li = document.createElement('li');
@@ -351,26 +353,32 @@ async function loadChats() {
 }
 
 async function loadSuggestedUsers() {
-  const container = document.getElementById('suggested-list');
+  const container = document.getElementById('home-suggestions-list');
+  if (!container) return;
   container.innerHTML = '';
   try {
     const suggested = await get(`/api/users/suggested/${currentUser.userId}`);
-    suggested.forEach(u => {
-      const div = document.createElement('div');
-      div.className = 'user-item';
-      div.innerHTML = `
-        <div class="user-avatar" onclick="viewOtherProfile(${u.id},'${esc(u.username)}','${u.profilePic||''}')" style="cursor:pointer">
-          <img src="${avatarSrc(u.profilePic, u.username)}" alt="${u.username}">
-        </div>
-        <div class="user-info" onclick="viewOtherProfile(${u.id},'${esc(u.username)}','${u.profilePic||''}')" style="cursor:pointer">
-          <strong>${esc(u.username)}</strong>
-          <small>Suggested</small>
-        </div>
-        <button class="msg-user-btn" onclick="startChatWith(${u.id},'${esc(u.username)}','${u.profilePic||''}')">
-          <i class="fas fa-paper-plane"></i>
-        </button>`;
-      container.appendChild(div);
-    });
+    if (suggested.length > 0) {
+      show('home-suggestions');
+      suggested.forEach(u => {
+        const div = document.createElement('div');
+        div.className = 'user-item';
+        div.innerHTML = `
+          <div class="user-avatar" onclick="viewOtherProfile(${u.id},'${esc(u.username)}','${u.profilePic||''}')" style="cursor:pointer">
+            <img src="${avatarSrc(u.profilePic, u.username)}" alt="${u.username}">
+          </div>
+          <div class="user-info" onclick="viewOtherProfile(${u.id},'${esc(u.username)}','${u.profilePic||''}')" style="cursor:pointer">
+            <strong>${esc(u.username)}</strong>
+            <small>Suggested</small>
+          </div>
+          <button class="msg-user-btn" onclick="startChatWith(${u.id},'${esc(u.username)}','${u.profilePic||''}')">
+            <i class="fas fa-paper-plane"></i>
+          </button>`;
+        container.appendChild(div);
+      });
+    } else {
+      hide('home-suggestions');
+    }
   } catch(e) { console.error(e); }
 }
 
@@ -827,8 +835,10 @@ function buildPostCard(p) {
   const disliked = p.my_reaction === 'dislike';
   div.innerHTML = `
     <div class="post-header">
-      <div class="post-avatar"><img src="${avatarSrc(p.profilePic, p.username)}" alt="${p.username}"></div>
-      <div class="post-user-info">
+      <div class="post-avatar" onclick="viewOtherProfile(${p.user_id},'${esc(p.username)}','${p.profilePic||''}')" style="cursor:pointer">
+        <img src="${avatarSrc(p.profilePic, p.username)}" alt="${p.username}">
+      </div>
+      <div class="post-user-info" onclick="viewOtherProfile(${p.user_id},'${esc(p.username)}','${p.profilePic||''}')" style="cursor:pointer">
         <strong>${esc(p.username)}</strong>
         <small>${timeAgo(p.created_at)}</small>
       </div>
@@ -959,9 +969,11 @@ function renderComments(comments) {
     const div = document.createElement('div');
     div.className = 'comment-item';
     div.innerHTML = `
-      <div class="comment-avatar"><img src="${avatarSrc(c.profilePic, c.username)}" alt="${c.username}"></div>
+      <div class="comment-avatar" onclick="closeComments(); viewOtherProfile(${c.user_id},'${esc(c.username)}','${c.profilePic||''}')" style="cursor:pointer">
+        <img src="${avatarSrc(c.profilePic, c.username)}" alt="${c.username}">
+      </div>
       <div class="comment-bubble">
-        <strong>${esc(c.username)}</strong>
+        <strong onclick="closeComments(); viewOtherProfile(${c.user_id},'${esc(c.username)}','${c.profilePic||''}')" style="cursor:pointer">${esc(c.username)}</strong>
         <p>${esc(c.content)}</p>
       </div>`;
     list.appendChild(div);
@@ -986,9 +998,11 @@ async function submitComment() {
       const div = document.createElement('div');
       div.className = 'comment-item';
       div.innerHTML = `
-        <div class="comment-avatar"><img src="${avatarSrc(comment.profilePic, comment.username)}" alt="${comment.username}"></div>
+        <div class="comment-avatar" onclick="closeComments(); viewOtherProfile(${comment.user_id},'${esc(comment.username)}','${comment.profilePic||''}')" style="cursor:pointer">
+          <img src="${avatarSrc(comment.profilePic, comment.username)}" alt="${comment.username}">
+        </div>
         <div class="comment-bubble">
-          <strong>${esc(comment.username)}</strong>
+          <strong onclick="closeComments(); viewOtherProfile(${comment.user_id},'${esc(comment.username)}','${comment.profilePic||''}')" style="cursor:pointer">${esc(comment.username)}</strong>
           <p>${esc(comment.content)}</p>
         </div>`;
       list.appendChild(div);

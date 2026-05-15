@@ -145,9 +145,10 @@ a{color:var(--accent);text-decoration:none}
 #main-content::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:4px}
 .view{display:none;height:100%}
 .view.active{display:block}
+#view-home.active{display:flex;flex-direction:column}
 
 /* ─── EMPTY STATE ───────────────────────────────────────────── */
-.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--text3);padding:40px;text-align:center}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:12px;color:var(--text3);padding:40px;text-align:center}
 .empty-state i{font-size:48px;color:var(--bg3);animation:iconFloat 3s ease-in-out infinite}
 @keyframes iconFloat{
   0%, 100%{transform:translateY(0)}
@@ -354,7 +355,7 @@ body.light-mode .msg-wrap.them .msg-bubble {
 .bottom-nav{padding:0 2px}
 .nav-btn{min-width:44px;padding:6px 8px}
 /* Suggested Users in Home */
-.suggested-section{padding:16px;border-top:1px solid var(--border);margin-top:auto}
+.suggested-section{padding:16px;border-bottom:1px solid var(--border);margin-bottom:10px}
 .suggested-label{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;justify-content:space-between}
 .suggested-list{display:flex;flex-direction:column;gap:10px}
 
