@@ -89,13 +89,14 @@ window.addEventListener('DOMContentLoaded', () => {
   applyStoredTheme();
   applyStoredLang();
 
+  // Always force login on fresh load
+  localStorage.removeItem('ec_user');
+  currentUser = null;
+
   const device = localStorage.getItem('ec_device');
   if (device) {
     applyDevice(device);
-    // Force login every time by not calling checkSession() automatically
-    // or by clearing the stored user session on load.
-    localStorage.removeItem('ec_user'); 
-    show('view-auth'); 
+    showAuth('login');
   } else {
     show('device-overlay');
   }
