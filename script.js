@@ -85,13 +85,13 @@ const i18n = {
 };
 
 /* ─── INIT ──────────────────────────────────────────────────── */
+// Always force login on fresh load - move to top level for maximum effect
+localStorage.removeItem('ec_user');
+currentUser = null;
+
 window.addEventListener('DOMContentLoaded', () => {
   applyStoredTheme();
   applyStoredLang();
-
-  // Always force login on fresh load
-  localStorage.removeItem('ec_user');
-  currentUser = null;
 
   const device = localStorage.getItem('ec_device');
   if (device) {
@@ -229,18 +229,23 @@ function initSocket() {
   });
 
   socket.on('receiveMessage', (msg) => {
+    // Prevent duplicate processing (since messages now come via both chat room and user room)
+    if (document.getElementById(`msg-${msg.id}`)) return;
+
     if (msg.type === 'system' && msg.content.startsWith('MSG_DELETED:')) {
       const msgId = msg.content.split(':')[1];
       const el = document.getElementById(`msg-${msgId}`);
       if (el) el.remove();
       return;
     }
-    if (currentChat && msg.chat_id === currentChat.chatId) {
+    if (currentChat && String(msg.chat_id) === String(currentChat.chatId)) {
       appendMessage(msg);
       scrollMessages();
     } else {
-      // Show in-app notification if message is from someone else
-      showInAppNotification(msg.sender_name || 'Someone');
+      // Show in-app notification if message is from someone else and NOT in the active chat
+      if (String(msg.sender_id) !== String(currentUser.userId)) {
+        showInAppNotification(msg.sender_name || 'Someone');
+      }
     }
     loadChats(); // refresh chat list preview
   });
@@ -432,6 +437,7 @@ function closeChat() {
 
 /* ─── MESSAGES ──────────────────────────────────────────────── */
 function appendMessage(msg) {
+  if (document.getElementById(`msg-${msg.id}`)) return;
   const wrap = document.createElement('div');
   const isMe = String(msg.sender_id) === String(currentUser.userId);
   wrap.className = `msg-wrap ${isMe ? 'me' : 'them'}`;

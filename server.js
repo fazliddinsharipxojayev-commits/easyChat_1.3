@@ -11,6 +11,16 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
+// Middleware to prevent caching of sensitive entry files
+app.use((req, res, next) => {
+  if (req.url === '/' || req.url === '/index.html' || req.url.includes('script.js')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(express.static(__dirname));
 const UPLOADS_DIR = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, 'uploads');
@@ -388,6 +398,7 @@ const onlineUsers = new Map(); // userId -> socketId
 
 io.on('connection', (socket) => {
   socket.on('userOnline', (userId) => {
+    socket.join(`user_${userId}`);
     onlineUsers.set(String(userId), socket.id);
     io.emit('onlineUsers', Array.from(onlineUsers.keys()));
   });
@@ -420,8 +431,18 @@ io.on('connection', (socket) => {
         db.run(`UPDATE chats SET last_message = ?, updated_at = CURRENT_TIMESTAMP, deleted_by = '' WHERE id = ?`,
           [type === 'image' ? '📷 Image' : content, chatId]);
           
-        db.get(`SELECT m.*, u.username as sender_name FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?`, [msgId], (err, msg) => {
-          if (msg) io.to(`chat_${chatId}`).emit('receiveMessage', msg);
+        db.get(`SELECT m.*, u.username as sender_name, c.user1_id, c.user2_id FROM messages m 
+                JOIN users u ON u.id = m.sender_id 
+                JOIN chats c ON c.id = m.chat_id
+                WHERE m.id = ?`, [msgId], (err, msg) => {
+          if (msg) {
+            // Send to the chat room
+            io.to(`chat_${chatId}`).emit('receiveMessage', msg);
+            
+            // Also send to the other user's private room for global notifications
+            const otherUserId = msg.user1_id == senderId ? msg.user2_id : msg.user1_id;
+            io.to(`user_${otherUserId}`).emit('receiveMessage', msg);
+          }
         });
       }
     );
