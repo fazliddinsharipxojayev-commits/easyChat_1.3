@@ -551,6 +551,7 @@ async function startChatWith(userId, username, profilePic) {
 let viewingUserId = null;
 
 async function viewOtherProfile(userId, username, profilePic) {
+  closeChat(); // Close chat if navigating from one
   if (String(userId) === String(currentUser.userId)) {
     navigate('profile');
     return;
@@ -805,11 +806,16 @@ async function openForwardModal(postId, imageUrl, posterId, posterName, posterPi
   list.innerHTML = '';
   try {
     const chats = await get(`/api/chats/${currentUser.userId}`);
-    if (!chats.length) {
-      list.innerHTML = `<div style="text-align:center;color:var(--text3);padding:20px">No active chats to forward to.</div>`;
+    const friends = await get(`/api/friends/${currentUser.userId}`);
+    const friendIds = friends.map(f => String(f.id));
+    
+    const friendChats = chats.filter(c => friendIds.includes(String(c.other_user_id)));
+
+    if (!friendChats.length) {
+      list.innerHTML = `<div style="text-align:center;color:var(--text3);padding:20px">You can only send posts to your friends.</div>`;
       return;
     }
-    chats.forEach(c => {
+    friendChats.forEach(c => {
       const div = document.createElement('div');
       div.className = 'user-item';
       div.innerHTML = `
