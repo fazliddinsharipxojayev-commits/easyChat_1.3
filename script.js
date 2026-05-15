@@ -770,7 +770,7 @@ function buildPostCard(p) {
       <button class="post-action-btn post-comment-btn" onclick="openComments(${p.id})">
         <i class="fas fa-comment"></i> <span id="comments-count-${p.id}">${p.comment_count}</span>
       </button>
-      <button class="post-action-btn" onclick="openForwardModal(${p.id})" style="margin-left:auto">
+      <button class="post-action-btn" onclick="openForwardModal(${p.id}, '${p.image_url}')" style="margin-left:auto">
         <i class="fas fa-paper-plane"></i>
       </button>
     </div>
@@ -778,9 +778,9 @@ function buildPostCard(p) {
   return div;
 }
 
-let activeForwardPostId = null;
-async function openForwardModal(postId) {
-  activeForwardPostId = postId;
+let activeForwardImageUrl = null;
+async function openForwardModal(postId, imageUrl) {
+  activeForwardImageUrl = imageUrl;
   show('forward-modal');
   const list = document.getElementById('forward-list');
   list.innerHTML = '';
@@ -810,9 +810,8 @@ function closeForward() { hide('forward-modal'); }
 function closeForwardIfOutside(e) { if (e.target.id === 'forward-modal') closeForward(); }
 
 function forwardPostToChat(chatId, otherUserId) {
-  if (!activeForwardPostId || !socket) return;
-  const link = `${window.location.origin}/?post=${activeForwardPostId}`;
-  socket.emit('sendMessage', { chatId, senderId: currentUser.userId, content: link, type: 'text' });
+  if (!activeForwardImageUrl || !socket) return;
+  socket.emit('sendMessage', { chatId, senderId: currentUser.userId, content: activeForwardImageUrl, type: 'image' });
   closeForward();
   toast('Post sent!', 'success');
 }
