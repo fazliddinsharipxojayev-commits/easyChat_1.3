@@ -179,7 +179,7 @@
         <section id="view-posts" class="view">
           <div class="posts-upload-btn-wrap">
             <button class="fab-upload" onclick="triggerPostUpload()">
-              <i class="fas fa-plus"></i> Share a Photo
+              <i class="fas fa-plus"></i> <span data-t="share_photo">Share a Photo</span>
             </button>
             <input type="file" id="post-image-input" accept="image/*" style="display:none" onchange="handlePostUpload(this)">
           </div>
@@ -313,8 +313,8 @@
                 <div class="settings-item-left">
                   <div class="settings-icon accent"><i class="fas fa-user-plus"></i></div>
                   <div>
-                    <span class="settings-item-title">Create New Account</span>
-                    <small>Register a different account</small>
+                    <span class="settings-item-title" data-t="create_new_account">Create New Account</span>
+                    <small data-t="create_new_sub">Register a different account</small>
                   </div>
                 </div>
                 <i class="fas fa-chevron-right settings-arrow"></i>
@@ -323,8 +323,8 @@
                 <div class="settings-item-left">
                   <div class="settings-icon green"><i class="fas fa-exchange-alt"></i></div>
                   <div>
-                    <span class="settings-item-title">Log Into Other Account</span>
-                    <small>Switch to a different account</small>
+                    <span class="settings-item-title" data-t="log_into_other">Log Into Other Account</span>
+                    <small data-t="log_into_sub">Switch to a different account</small>
                   </div>
                 </div>
                 <i class="fas fa-chevron-right settings-arrow"></i>
@@ -336,8 +336,8 @@
                 <div class="settings-item-left">
                   <div class="settings-icon red"><i class="fas fa-sign-out-alt"></i></div>
                   <div>
-                    <span class="settings-item-title">Log Out</span>
-                    <small>Sign out of this account</small>
+                    <span class="settings-item-title" data-t="log_out">Log Out</span>
+                    <small data-t="log_out_sub">Sign out of this account</small>
                   </div>
                 </div>
                 <i class="fas fa-chevron-right settings-arrow"></i>
@@ -375,16 +375,17 @@
       </div>
 
       <!-- COMMENTS MODAL -->
-      <div id="comments-modal" class="modal-backdrop hidden" onclick="closeCommentsIfOutside(event)">
-        <div class="comments-modal glass">
-          <div class="comments-header">
-            <h3>Comments</h3>
-            <button onclick="closeComments()"><i class="fas fa-times"></i></button>
+      <div id="comments-modal" class="modal-overlay hidden" onclick="closeCommentsIfOutside(event)">
+        <div class="modal-content comments-modal">
+          <div class="modal-header">
+            <button class="back-btn" onclick="closeComments()" style="margin-right:8px"><i class="fas fa-arrow-left"></i></button>
+            <h3 data-t="comments">Comments</h3>
+            <button class="modal-close" onclick="closeComments()"><i class="fas fa-times"></i></button>
           </div>
           <div id="comments-list" class="comments-list"></div>
-          <div class="comments-input-bar">
+          <div class="comment-input-wrap">
             <input type="text" id="comment-input" placeholder="Add a comment…" onkeydown="handleCommentKey(event)">
-            <button onclick="submitComment()"><i class="fas fa-paper-plane"></i></button>
+            <button class="comment-send" onclick="submitComment()"><i class="fas fa-paper-plane"></i></button>
           </div>
         </div>
       </div>

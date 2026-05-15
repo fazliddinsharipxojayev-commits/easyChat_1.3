@@ -35,7 +35,18 @@ const i18n = {
     no_posts_sub: 'Be the first to share a photo!',
     online: '● Online',
     offline: '○ Offline',
-    share_photo: 'Share a Photo'
+    share_photo: 'Share a Photo',
+    create_new_account: 'Create New Account',
+    create_new_sub: 'Register a different account',
+    log_into_other: 'Log Into Other Account',
+    log_into_sub: 'Switch to a different account',
+    log_out: 'Log Out',
+    log_out_sub: 'Sign out of this account',
+    search_users: 'Search users...',
+    add_comment: 'Add a comment…',
+    login: 'Sign In',
+    register: 'Create Account',
+    create_account: 'Create one'
   },
   uz: {
     suggested: 'Siz tanishingiz mumkin',
@@ -58,7 +69,18 @@ const i18n = {
     no_posts_sub: 'Birinchi bo\'lib rasm ulashing!',
     online: '● Onlayn',
     offline: '○ Oflayn',
-    share_photo: 'Rasm ulashish'
+    share_photo: 'Rasm ulashish',
+    create_new_account: 'Yangi hisob ochish',
+    create_new_sub: 'Boshqa hisob ro\'yxatdan o\'tkazish',
+    log_into_other: 'Boshqa hisobga kirish',
+    log_into_sub: 'Boshqa hisobga almashtirish',
+    log_out: 'Chiqish',
+    log_out_sub: 'Bu hisobdan chiqish',
+    search_users: 'Foydalanuvchilarni qidirish...',
+    add_comment: 'Fikr bildirish…',
+    login: 'Kirish',
+    register: 'Ro\'yxatdan o\'tish',
+    create_account: 'Hisob ochish'
   }
 };
 
@@ -174,6 +196,7 @@ function handleLogout() {
   currentUser = null;
   localStorage.removeItem('ec_user');
   closeChat();
+  closeComments();
   showAuth('login');
   toast('Logged out');
 }
@@ -183,6 +206,7 @@ function goCreateAccount() {
   currentUser = null;
   localStorage.removeItem('ec_user');
   closeChat();
+  closeComments();
   showAuth('register');
 }
 
@@ -191,6 +215,7 @@ function goSwitchAccount() {
   currentUser = null;
   localStorage.removeItem('ec_user');
   closeChat();
+  closeComments();
   showAuth('login');
 }
 
@@ -931,6 +956,12 @@ function changeLanguage(lang) {
     el.textContent = t(key);
   });
   
+  // Update placeholders
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) searchInput.placeholder = t('search_users');
+  const commentInput = document.getElementById('comment-input');
+  if (commentInput) commentInput.placeholder = t('add_comment');
+
   // Update nav labels
   document.querySelector('#nav-home span').textContent = t('chats');
   document.querySelector('#nav-search span').textContent = t('search');
