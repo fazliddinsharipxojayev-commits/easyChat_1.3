@@ -123,6 +123,12 @@ a{color:var(--accent);text-decoration:none}
 #app.mode-pc #app-inner{width:100%;max-width:900px;height:100vh;border-radius:0;box-shadow: 0 0 100px rgba(0,0,0,0.5);border-left: 1px solid var(--border);border-right: 1px solid var(--border);position:relative;z-index:1}
 #app-inner{position:relative;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
 
+/* PC Grid for Posts */
+#app.mode-pc .posts-feed { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; align-content: start; }
+#app.mode-pc .posts-feed .post-card { margin-bottom: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+#app.mode-pc .posts-feed .post-image { height: 250px; }
+#app.mode-pc .posts-feed .post-image img { height: 100%; object-fit: cover; }
+
 /* ─── TOP BAR ───────────────────────────────────────────────── */
 .top-bar{position:absolute;top:0;left:0;right:0;height:var(--top-h);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:50;border-bottom:1px solid var(--glass-border);border-radius:0}
 .top-bar-left{display:flex;align-items:center;gap:10px}
@@ -276,9 +282,6 @@ a{color:var(--accent);text-decoration:none}
 .send-btn{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;transition:all .2s;box-shadow:0 4px 14px var(--accent-glow)}
 .send-btn:hover{transform:scale(1.08)}
 
-/* ─── COMMENTS MODAL ─────────────────────────────────────────── */
-.modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:flex-end;justify-content:center}
-.comments-modal{width:100%;max-height:70%;border-radius:24px 24px 0 0;display:flex;flex-direction:column;overflow:hidden}
 .comments-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
 .comments-header h3{font-size:16px;font-weight:700}
 .comments-header button{width:32px;height:32px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;color:var(--text2)}

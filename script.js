@@ -15,7 +15,7 @@ let currentLang = 'en';
 
 const i18n = {
   en: {
-    suggested: 'Suggested for you',
+    suggested: 'People you may know',
     dark_mode: 'Dark Mode',
     theme_desc: 'Switch between dark and light',
     language: 'Language',
@@ -23,10 +23,22 @@ const i18n = {
     search: 'Search',
     posts: 'Posts',
     profile: 'My Profile',
-    settings: 'Settings'
+    settings: 'Settings',
+    friends: 'Friends',
+    message: 'Message',
+    be_friends: 'Be Friends',
+    remove: 'Remove',
+    copy_link: 'Copy Link',
+    no_chats: 'No conversations yet',
+    no_chats_sub: 'Start a new chat below',
+    no_posts: 'No posts yet',
+    no_posts_sub: 'Be the first to share a photo!',
+    online: '● Online',
+    offline: '○ Offline',
+    share_photo: 'Share a Photo'
   },
   uz: {
-    suggested: 'Siz uchun tavsiyalar',
+    suggested: 'Siz tanishingiz mumkin',
     dark_mode: 'Tungi rejim',
     theme_desc: 'Yorug\' va tungi rejimni almashtirish',
     language: 'Til',
@@ -34,7 +46,19 @@ const i18n = {
     search: 'Qidiruv',
     posts: 'Postlar',
     profile: 'Mening profilim',
-    settings: 'Sozlamalar'
+    settings: 'Sozlamalar',
+    friends: 'Do\'stlar',
+    message: 'Xabar',
+    be_friends: 'Do\'stlashish',
+    remove: 'O\'chirish',
+    copy_link: 'Nusxa olish',
+    no_chats: 'Hali suhbatlar yo\'q',
+    no_chats_sub: 'Quyida yangi suhbat boshlang',
+    no_posts: 'Hali postlar yo\'q',
+    no_posts_sub: 'Birinchi bo\'lib rasm ulashing!',
+    online: '● Onlayn',
+    offline: '○ Oflayn',
+    share_photo: 'Rasm ulashish'
   }
 };
 
@@ -82,8 +106,17 @@ function bootApp() {
   hide('device-overlay');
   show('app');
   initSocket();
-  navigate('home');
   updateSettingsProfile();
+  
+  // Check for deep link
+  const urlParams = new URLSearchParams(window.location.search);
+  const postId = urlParams.get('post');
+  if (postId) {
+    navigate('posts');
+    openSinglePost(postId);
+  } else {
+    navigate('home');
+  }
 }
 
 /* ─── AUTH ──────────────────────────────────────────────────── */
@@ -256,7 +289,7 @@ async function loadChats() {
       li.className = 'chat-item';
       li.onclick = () => openChat(c.chat_id, { userId: c.other_user_id, username: c.username, profilePic: c.profilePic });
       li.innerHTML = `
-        <div class="chat-avatar">
+        <div class="chat-avatar" onclick="event.stopPropagation(); viewOtherProfile(${c.other_user_id},'${esc(c.username)}','${c.profilePic||''}')">
           <img src="${avatarSrc(c.profilePic, c.username)}" alt="${c.username}">
           ${isOnline ? '<div class="online-dot"></div>' : ''}
         </div>
@@ -360,7 +393,8 @@ function appendMessage(msg) {
   const isMe = String(msg.sender_id) === String(currentUser.userId);
   wrap.className = `msg-wrap ${isMe ? 'me' : 'them'}`;
 
-  const avatar = `<img class="msg-avatar" src="${isMe ? avatarSrc(currentUser.profilePic, currentUser.username) : avatarSrc(currentChat.otherUser.profilePic, currentChat.otherUser.username)}" alt="avatar">`;
+  const clickAttr = isMe ? `onclick="navigate('profile')"` : `onclick="viewOtherProfile(${currentChat.otherUser.userId},'${esc(currentChat.otherUser.username)}','${currentChat.otherUser.profilePic}')"`;
+  const avatar = `<img class="msg-avatar" src="${isMe ? avatarSrc(currentUser.profilePic, currentUser.username) : avatarSrc(currentChat.otherUser.profilePic, currentChat.otherUser.username)}" alt="avatar" style="cursor:pointer" ${clickAttr}>`;
 
   let content = '';
   if (msg.type === 'image') {
@@ -471,18 +505,40 @@ async function startChatWith(userId, username, profilePic) {
 let viewingUserId = null;
 
 async function viewOtherProfile(userId, username, profilePic) {
+  if (String(userId) === String(currentUser.userId)) {
+    navigate('profile');
+    return;
+  }
   viewingUserId = { userId, username, profilePic };
 
-  // Switch to other-profile view (not a nav tab — show it as overlay inside main)
+  // Switch to other-profile view
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-other-profile').classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('nav-search').classList.add('active');
   document.getElementById('top-title').textContent = username;
   document.getElementById('top-actions').innerHTML = '';
 
   document.getElementById('other-profile-avatar').src = avatarSrc(profilePic, username);
   document.getElementById('other-profile-username').textContent = username;
+
+  // Load friends count and status
+  try {
+    const fRes = await get(`/api/friends/${userId}`);
+    document.getElementById('other-friends-count').textContent = fRes.length;
+    document.getElementById('other-friends-stat').onclick = () => showFriendsList(userId);
+    
+    const check = await get(`/api/friends/check/${currentUser.userId}/${userId}`);
+    const fBtn = document.getElementById('other-profile-friend-btn');
+    if (check.friends) {
+      fBtn.innerHTML = `<i class="fas fa-check"></i> <span data-t="friends">${t('friends')}</span>`;
+      fBtn.style.background = 'var(--bg3)';
+      fBtn.style.color = 'var(--text)';
+    } else {
+      fBtn.innerHTML = `<i class="fas fa-user-plus"></i> <span data-t="be_friends">${t('be_friends')}</span>`;
+      fBtn.style.background = 'linear-gradient(135deg,var(--accent),var(--accent2))';
+      fBtn.style.color = '#fff';
+    }
+  } catch(e) { console.error(e); }
 
   // Load their posts
   const grid = document.getElementById('other-posts-grid');
@@ -496,6 +552,23 @@ async function viewOtherProfile(userId, username, profilePic) {
     document.getElementById('other-post-count').textContent = userPosts.length;
     if (!userPosts.length) { show('other-posts-empty'); return; }
     userPosts.forEach(p => grid.appendChild(buildGridItem(p)));
+  } catch(e) { console.error(e); }
+}
+
+async function toggleFriendFromProfile() {
+  if (!viewingUserId) return;
+  const friendId = viewingUserId.userId;
+  try {
+    const check = await get(`/api/friends/check/${currentUser.userId}/${friendId}`);
+    if (check.friends) {
+      // Remove friend
+      await post('/api/friends', { user1: currentUser.userId, user2: friendId }, 'DELETE');
+    } else {
+      // Add friend
+      await post('/api/friends', { user1: currentUser.userId, user2: friendId });
+    }
+    // Refresh
+    viewOtherProfile(viewingUserId.userId, viewingUserId.username, viewingUserId.profilePic);
   } catch(e) { console.error(e); }
 }
 
@@ -514,6 +587,11 @@ async function loadMyProfile() {
   if (!currentUser) return;
   document.getElementById('profile-page-username').textContent = currentUser.username;
   document.getElementById('profile-page-avatar').src = avatarSrc(currentUser.profilePic, currentUser.username);
+
+  try {
+    const fRes = await get(`/api/friends/${currentUser.userId}`);
+    document.getElementById('my-friends-count').textContent = fRes.length;
+  } catch(e) {}
 
   const grid = document.getElementById('my-posts-grid');
   const empty = document.getElementById('my-posts-empty');
@@ -575,6 +653,46 @@ function clearSearch() {
   loadSearchSuggestions();
 }
 
+/* ─── FRIENDS MODAL ──────────────────────────────────────────── */
+async function showFriendsList(userId) {
+  show('friends-modal');
+  const list = document.getElementById('friends-list');
+  list.innerHTML = '';
+  try {
+    const friends = await get(`/api/friends/${userId}`);
+    if (!friends.length) {
+      list.innerHTML = `<div style="text-align:center;color:var(--text3);padding:20px">No friends yet.</div>`;
+      return;
+    }
+    const isMe = String(userId) === String(currentUser.userId);
+    friends.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'user-item';
+      div.innerHTML = `
+        <div class="user-avatar" onclick="closeFriends(); viewOtherProfile(${f.id},'${esc(f.username)}','${f.profilePic||''}')" style="cursor:pointer">
+          <img src="${avatarSrc(f.profilePic, f.username)}" alt="${f.username}">
+        </div>
+        <div class="user-info" onclick="closeFriends(); viewOtherProfile(${f.id},'${esc(f.username)}','${f.profilePic||''}')" style="cursor:pointer">
+          <strong>${esc(f.username)}</strong>
+        </div>
+        ${isMe ? `<button class="remove-friend-btn" onclick="removeFriend(${f.id})"><span data-t="remove">${t('remove')}</span></button>` : ''}`;
+      list.appendChild(div);
+    });
+  } catch(e) { console.error(e); }
+}
+
+function closeFriends() { hide('friends-modal'); }
+function closeFriendsIfOutside(e) { if (e.target.id === 'friends-modal') closeFriends(); }
+
+async function removeFriend(friendId) {
+  if(!confirm('Remove friend?')) return;
+  try {
+    await post('/api/friends', { user1: currentUser.userId, user2: friendId }, 'DELETE');
+    showFriendsList(currentUser.userId);
+    loadMyProfile();
+  } catch(e) { console.error(e); }
+}
+
 /* ─── POSTS ──────────────────────────────────────────────────── */
 async function loadPosts() {
   try {
@@ -586,6 +704,16 @@ async function loadPosts() {
     hide('posts-empty');
     posts.forEach(p => feed.appendChild(buildPostCard(p)));
   } catch(e) { console.error(e); }
+}
+
+async function openSinglePost(postId) {
+  try {
+    const post = await get(`/api/posts/single/${postId}?userId=${currentUser?.userId||0}`);
+    const feed = document.getElementById('posts-feed');
+    feed.innerHTML = '';
+    hide('posts-empty');
+    feed.appendChild(buildPostCard(post));
+  } catch(e) { toast('Post not found', 'error'); }
 }
 
 function buildPostCard(p) {
@@ -615,9 +743,21 @@ function buildPostCard(p) {
       <button class="post-action-btn post-comment-btn" onclick="openComments(${p.id})">
         <i class="fas fa-comment"></i> <span id="comments-count-${p.id}">${p.comment_count}</span>
       </button>
+      <button class="post-action-btn" onclick="copyPostLink(${p.id})" style="margin-left:auto">
+        <i class="fas fa-link"></i>
+      </button>
     </div>
     ${p.caption ? `<div class="post-caption"><strong>${esc(p.username)}</strong>${esc(p.caption)}</div>` : ''}`;
   return div;
+}
+
+function copyPostLink(postId) {
+  const url = `${window.location.origin}/?post=${postId}`;
+  navigator.clipboard.writeText(url).then(() => {
+    toast('Link copied!', 'success');
+  }).catch(() => {
+    toast('Failed to copy', 'error');
+  });
 }
 
 function triggerPostUpload() {
@@ -882,9 +1022,9 @@ async function get(url) {
   return res.json();
 }
 
-async function post(url, body) {
+async function post(url, body, method = 'POST') {
   const res = await fetch(API + url, {
-    method: 'POST',
+    method: method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });

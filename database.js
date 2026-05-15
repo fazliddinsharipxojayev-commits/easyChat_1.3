@@ -58,6 +58,13 @@ db.serialize(() => {
     content TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS friendships (
+    user_id INTEGER NOT NULL,
+    friend_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, friend_id)
+  )`);
 });
 
 module.exports = db;

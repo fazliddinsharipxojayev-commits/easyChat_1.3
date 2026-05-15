@@ -94,7 +94,20 @@
   </div>
 
   <!-- ═══════════════════════════════════════════
-       MAIN APP
+       FRIENDS MODAL
+  ═══════════════════════════════════════════ -->
+  <div id="friends-modal" class="modal-overlay hidden" onclick="closeFriendsIfOutside(event)">
+    <div class="modal-content friends-modal">
+      <div class="modal-header">
+        <h3 data-t="friends">Friends</h3>
+        <button class="modal-close" onclick="closeFriends()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="friends-list-container" id="friends-list"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       COMMENTS MODAL
   ═══════════════════════════════════════════ -->
   <div id="app" class="hidden">
     <div class="pc-bg-decor">
@@ -193,17 +206,12 @@
             <div class="profile-stats-bar">
               <div class="profile-stat">
                 <strong id="my-post-count">0</strong>
-                <span>Posts</span>
+                <span data-t="posts">Posts</span>
               </div>
               <div class="profile-stat-divider"></div>
-              <div class="profile-stat">
-                <strong>—</strong>
-                <span>Followers</span>
-              </div>
-              <div class="profile-stat-divider"></div>
-              <div class="profile-stat">
-                <strong>—</strong>
-                <span>Following</span>
+              <div class="profile-stat" onclick="showFriendsList(currentUser.userId)" style="cursor:pointer">
+                <strong id="my-friends-count">0</strong>
+                <span data-t="friends">Friends</span>
               </div>
             </div>
             <div class="profile-posts-grid" id="my-posts-grid"></div>
@@ -230,22 +238,22 @@
             <div class="profile-stats-bar">
               <div class="profile-stat">
                 <strong id="other-post-count">0</strong>
-                <span>Posts</span>
+                <span data-t="posts">Posts</span>
               </div>
               <div class="profile-stat-divider"></div>
-              <div class="profile-stat">
-                <strong>—</strong>
-                <span>Followers</span>
-              </div>
-              <div class="profile-stat-divider"></div>
-              <div class="profile-stat">
-                <strong>—</strong>
-                <span>Following</span>
+              <div class="profile-stat" id="other-friends-stat" style="cursor:pointer">
+                <strong id="other-friends-count">0</strong>
+                <span data-t="friends">Friends</span>
               </div>
             </div>
-            <button class="profile-message-btn" id="other-profile-msg-btn" onclick="startChatFromProfile()">
-              <i class="fas fa-paper-plane"></i> Message
-            </button>
+            <div style="display:flex;gap:8px;padding:0 16px;margin:14px 0 4px;">
+              <button class="profile-message-btn" id="other-profile-msg-btn" onclick="startChatFromProfile()" style="flex:1;margin:0">
+                <i class="fas fa-paper-plane"></i> <span data-t="message">Message</span>
+              </button>
+              <button class="profile-message-btn" id="other-profile-friend-btn" onclick="toggleFriendFromProfile()" style="flex:1;margin:0;background:var(--bg3);color:var(--text);border:1px solid var(--border)">
+                <i class="fas fa-user-plus"></i> <span data-t="be_friends">Be Friends</span>
+              </button>
+            </div>
             <div class="profile-posts-grid" id="other-posts-grid"></div>
             <div class="empty-state" id="other-posts-empty" style="height:200px">
               <i class="fas fa-images"></i>

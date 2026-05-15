@@ -107,6 +107,46 @@ app.post('/api/users/:id/avatar', upload.single('avatar'), (req, res) => {
   });
 });
 
+// ─── FRIENDS ──────────────────────────────────────────────────────────────────
+
+app.post('/api/friends', (req, res) => {
+  const { user1, user2 } = req.body;
+  if (!user1 || !user2) return res.status(400).json({ error: 'User IDs required' });
+  // Insert both directions to signify mutual friendship
+  db.run(`INSERT OR IGNORE INTO friendships (user_id, friend_id) VALUES (?, ?), (?, ?)`, [user1, user2, user2, user1], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/friends', (req, res) => {
+  const { user1, user2 } = req.body;
+  db.run(`DELETE FROM friendships WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)`, [user1, user2, user2, user1], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+app.get('/api/friends/check/:u1/:u2', (req, res) => {
+  db.get(`SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ?`, [req.params.u1, req.params.u2], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ friends: !!row });
+  });
+});
+
+app.get('/api/friends/:userId', (req, res) => {
+  db.all(
+    `SELECT u.id, u.username, u.profilePic FROM friendships f
+     JOIN users u ON u.id = f.friend_id
+     WHERE f.user_id = ? ORDER BY f.created_at DESC`,
+    [req.params.userId],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    }
+  );
+});
+
 // ─── CHATS ────────────────────────────────────────────────────────────────────
 
 app.post('/api/chats', (req, res) => {
@@ -188,6 +228,27 @@ app.get('/api/posts', (req, res) => {
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(rows);
+    }
+  );
+});
+
+app.get('/api/posts/single/:postId', (req, res) => {
+  const { userId } = req.query;
+  db.get(
+    `SELECT p.id, p.image_url, p.caption, p.created_at,
+            u.id as user_id, u.username, u.profilePic,
+            (SELECT COUNT(*) FROM post_likes WHERE post_id = p.id AND type='like') as like_count,
+            (SELECT COUNT(*) FROM post_likes WHERE post_id = p.id AND type='dislike') as dislike_count,
+            (SELECT COUNT(*) FROM post_comments WHERE post_id = p.id) as comment_count,
+            (SELECT type FROM post_likes WHERE post_id = p.id AND user_id = ?) as my_reaction
+     FROM posts p
+     JOIN users u ON u.id = p.user_id
+     WHERE p.id = ?`,
+    [userId || 0, req.params.postId],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.status(404).json({ error: 'Post not found' });
+      res.json(row);
     }
   );
 });
