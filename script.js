@@ -912,20 +912,95 @@ function triggerPostUpload() {
   document.getElementById('post-image-input').click();
 }
 
+let pendingUploadFile = null;
+let pendingUploadType = 'chat'; // 'chat' or 'post'
+
 async function handlePostUpload(input) {
   if (!input.files[0]) return;
-  const caption = prompt('Add a caption (optional):') || '';
-  const formData = new FormData();
-  formData.append('image', input.files[0]);
-  formData.append('userId', currentUser.userId);
-  formData.append('caption', caption);
+  pendingUploadFile = input.files[0];
+  pendingUploadType = 'post';
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('image-preview-img').src = e.target.result;
+    document.getElementById('preview-title').textContent = 'New Post';
+    document.getElementById('confirm-btn-text').textContent = 'Share Post';
+    document.getElementById('caption-wrap').classList.remove('hidden');
+    show('image-preview-modal');
+  };
+  reader.readAsDataURL(pendingUploadFile);
+}
+
+function handleChatImageUpload(input) {
+  if (!input.files[0]) return;
+  pendingUploadFile = input.files[0];
+  pendingUploadType = 'chat';
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('image-preview-img').src = e.target.result;
+    document.getElementById('preview-title').textContent = 'Send Photo';
+    document.getElementById('confirm-btn-text').textContent = 'Send to Chat';
+    document.getElementById('caption-wrap').classList.add('hidden');
+    show('image-preview-modal');
+  };
+  reader.readAsDataURL(pendingUploadFile);
+}
+
+function closeImagePreview() {
+  hide('image-preview-modal');
+  pendingUploadFile = null;
+  document.getElementById('post-image-input').value = '';
+  document.getElementById('chat-image-input').value = '';
+}
+
+async function confirmImageUpload() {
+  if (!pendingUploadFile) return;
+  const btn = document.getElementById('confirm-upload-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading…';
+
   try {
-    const res = await fetch('/api/posts', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (data.success) { toast('Post shared! 🎉', 'success'); loadPosts(); }
-    else toast(data.error || 'Upload failed', 'error');
-  } catch { toast('Upload failed', 'error'); }
-  input.value = '';
+    const formData = new FormData();
+    formData.append('image', pendingUploadFile);
+
+    if (pendingUploadType === 'post') {
+      const caption = document.getElementById('post-caption-input').value.trim();
+      formData.append('userId', currentUser.userId);
+      formData.append('caption', caption);
+      const res = await fetch('/api/posts', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) { 
+        toast('Post shared! 🎉', 'success'); 
+        loadPosts(); 
+        closeImagePreview();
+        document.getElementById('post-caption-input').value = '';
+      } else {
+        toast(data.error || 'Upload failed', 'error');
+      }
+    } else {
+      // Chat upload
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.imageUrl) {
+        socket.emit('sendMessage', { 
+          chatId: currentChat.chatId, 
+          senderId: currentUser.userId, 
+          content: data.imageUrl, 
+          type: 'image' 
+        });
+        closeImagePreview();
+      } else {
+        toast('Failed to upload image', 'error');
+      }
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Upload failed', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="fas fa-paper-plane"></i> <span id="confirm-btn-text">${pendingUploadType === 'post' ? 'Share Post' : 'Send to Chat'}</span>`;
+  }
 }
 
 async function reactPost(postId, type) {

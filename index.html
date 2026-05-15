@@ -373,10 +373,9 @@
           <span></span><span></span><span></span>
         </div>
         <div class="chat-input-bar glass">
-          <label for="chat-image-input" class="icon-btn" title="Send image">
+          <button class="icon-btn" onclick="document.getElementById('chat-image-input').click()" title="Send image">
             <i class="fas fa-image"></i>
-          </label>
-          <input type="file" id="chat-image-input" accept="image/*" style="display:none" onchange="handleChatImageUpload(this)">
+          </button>
           <input type="text" id="msg-input" placeholder="Message…" onkeydown="handleMsgKey(event)" oninput="handleTyping()">
           <button class="send-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
         </div>
@@ -406,6 +405,27 @@
             <button class="modal-close" onclick="closeForward()"><i class="fas fa-times"></i></button>
           </div>
           <div id="forward-list" class="forward-list-container"></div>
+        </div>
+      </div>
+      
+      <!-- IMAGE PREVIEW MODAL -->
+      <div id="image-preview-modal" class="modal-overlay hidden">
+        <div class="modal-content image-preview-modal">
+          <div class="modal-header">
+            <h3 id="preview-title">Preview</h3>
+            <button class="modal-close" onclick="closeImagePreview()"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="preview-body">
+            <img id="image-preview-img" src="" alt="preview">
+            <div id="caption-wrap" class="comment-input-wrap hidden">
+              <input type="text" id="post-caption-input" placeholder="Write a caption…">
+            </div>
+          </div>
+          <div class="preview-footer">
+            <button class="primary-btn" id="confirm-upload-btn" onclick="confirmImageUpload()">
+              <i class="fas fa-paper-plane"></i> <span id="confirm-btn-text">Send</span>
+            </button>
+          </div>
         </div>
       </div>
 
