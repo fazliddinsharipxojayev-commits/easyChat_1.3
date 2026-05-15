@@ -90,18 +90,30 @@ app.post('/api/login', (req, res) => {
 
 app.get('/api/users/suggested/:userId', (req, res) => {
   const userId = req.params.userId;
-  // Get friends of friends who are not already friends and not the user themselves
+  // Get friends of users the current user has chats with OR is already friends with
   const sql = `
     SELECT DISTINCT u.id, u.username, u.profilePic
-    FROM friendships f1
-    JOIN friendships f2 ON f1.friend_id = f2.user_id
-    JOIN users u ON u.id = f2.friend_id
-    WHERE f1.user_id = ?
-    AND u.id != ?
+    FROM users u
+    WHERE u.id != ?
     AND u.id NOT IN (SELECT friend_id FROM friendships WHERE user_id = ?)
+    AND (
+      -- Friends of people I have chats with
+      u.id IN (
+        SELECT f.friend_id FROM friendships f
+        JOIN chats c ON (c.user1_id = f.user_id OR c.user2_id = f.user_id)
+        WHERE (c.user1_id = ? OR c.user2_id = ?)
+      )
+      OR
+      -- Friends of my friends
+      u.id IN (
+        SELECT f2.friend_id FROM friendships f1
+        JOIN friendships f2 ON f1.friend_id = f2.user_id
+        WHERE f1.user_id = ?
+      )
+    )
     LIMIT 7
   `;
-  db.all(sql, [userId, userId, userId], (err, rows) => {
+  db.all(sql, [userId, userId, userId, userId, userId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     
     if (rows.length < 7) {
@@ -110,7 +122,7 @@ app.get('/api/users/suggested/:userId', (req, res) => {
       const placeholders = excludeIds.map(() => '?').join(',');
       db.all(`SELECT id, username, profilePic FROM users WHERE id NOT IN (${placeholders}) ORDER BY RANDOM() LIMIT ?`, 
         [...excludeIds, 7 - rows.length], (err, randomRows) => {
-          if (err) return res.json(rows); // just return what we have
+          if (err) return res.json(rows); 
           res.json([...rows, ...randomRows]);
         }
       );

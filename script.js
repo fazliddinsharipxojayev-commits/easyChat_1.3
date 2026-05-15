@@ -317,12 +317,10 @@ async function loadChats() {
     
     if (!chats.length) { 
       show('chats-empty'); 
-      loadSuggestedUsers();
-      return; 
+    } else {
+      hide('chats-empty');
     }
-    
-    hide('chats-empty');
-    hide('home-suggestions');
+    loadSuggestedUsers();
     chats.forEach(c => {
       const isOnline = onlineUserIds.includes(String(c.other_user_id));
       const li = document.createElement('li');

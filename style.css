@@ -355,7 +355,7 @@ body.light-mode .msg-wrap.them .msg-bubble {
 .bottom-nav{padding:0 2px}
 .nav-btn{min-width:44px;padding:6px 8px}
 /* Suggested Users in Home */
-.suggested-section{padding:16px;border-bottom:1px solid var(--border);margin-bottom:10px}
+.suggested-section{padding:16px;border-top:1px solid var(--border);margin-top:20px}
 .suggested-label{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;justify-content:space-between}
 .suggested-list{display:flex;flex-direction:column;gap:10px}
 
