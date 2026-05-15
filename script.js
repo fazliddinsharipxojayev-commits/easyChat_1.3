@@ -335,8 +335,7 @@ async function loadSuggestedUsers() {
   const container = document.getElementById('suggested-list');
   container.innerHTML = '';
   try {
-    const users = await get(`/api/users/search?q=a&currentUserId=${currentUser.userId}`);
-    const suggested = users.sort(() => 0.5 - Math.random()).slice(0, 3);
+    const suggested = await get(`/api/users/suggested/${currentUser.userId}`);
     suggested.forEach(u => {
       const div = document.createElement('div');
       div.className = 'user-item';
@@ -346,7 +345,7 @@ async function loadSuggestedUsers() {
         </div>
         <div class="user-info" onclick="viewOtherProfile(${u.id},'${esc(u.username)}','${u.profilePic||''}')" style="cursor:pointer">
           <strong>${esc(u.username)}</strong>
-          <small>Suggestion</small>
+          <small>Suggested</small>
         </div>
         <button class="msg-user-btn" onclick="startChatWith(${u.id},'${esc(u.username)}','${u.profilePic||''}')">
           <i class="fas fa-paper-plane"></i>

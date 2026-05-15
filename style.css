@@ -266,6 +266,11 @@ a{color:var(--accent);text-decoration:none}
 .msg-bubble{padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.5;word-break:break-word}
 .msg-wrap.me .msg-bubble{background:linear-gradient(135deg,var(--accent),#9b87ff);color:#fff;border-bottom-right-radius:4px}
 .msg-wrap.them .msg-bubble{background:var(--bg2);border:1px solid var(--border);border-bottom-left-radius:4px}
+body.light-mode .msg-wrap.them .msg-bubble {
+  background: #ffffff;
+  border: 1px solid #1a1a2e;
+  color: #1a1a2e;
+}
 .msg-image{max-width:220px;border-radius:14px;cursor:pointer;transition:transform .2s}
 .msg-image:hover{transform:scale(1.02)}
 .msg-time{font-size:10px;color:var(--text3);margin-top:3px;padding:0 4px}
@@ -439,5 +444,13 @@ a{color:var(--accent);text-decoration:none}
   color: #fff;
   font-weight: 700;
 }
+body.light-mode .fwd-poster-wrap {
+  background: #2a2a3a;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+body.light-mode .fwd-poster-info strong {
+  color: #fff;
+}
+
 
 

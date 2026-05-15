@@ -78,6 +78,38 @@ app.post('/api/login', (req, res) => {
 
 // ─── USERS ────────────────────────────────────────────────────────────────────
 
+app.get('/api/users/suggested/:userId', (req, res) => {
+  const userId = req.params.userId;
+  // Get friends of friends who are not already friends and not the user themselves
+  const sql = `
+    SELECT DISTINCT u.id, u.username, u.profilePic
+    FROM friendships f1
+    JOIN friendships f2 ON f1.friend_id = f2.user_id
+    JOIN users u ON u.id = f2.friend_id
+    WHERE f1.user_id = ?
+    AND u.id != ?
+    AND u.id NOT IN (SELECT friend_id FROM friendships WHERE user_id = ?)
+    LIMIT 7
+  `;
+  db.all(sql, [userId, userId, userId], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (rows.length < 7) {
+      // Fill with random users who are not the user and not already in suggested
+      const excludeIds = [userId, ...rows.map(r => r.id)];
+      const placeholders = excludeIds.map(() => '?').join(',');
+      db.all(`SELECT id, username, profilePic FROM users WHERE id NOT IN (${placeholders}) ORDER BY RANDOM() LIMIT ?`, 
+        [...excludeIds, 7 - rows.length], (err, randomRows) => {
+          if (err) return res.json(rows); // just return what we have
+          res.json([...rows, ...randomRows]);
+        }
+      );
+    } else {
+      res.json(rows);
+    }
+  });
+});
+
 app.get('/api/users/search', (req, res) => {
   const { q, currentUserId } = req.query;
   if (!q) return res.json([]);
