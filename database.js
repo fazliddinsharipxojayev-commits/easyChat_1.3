@@ -23,6 +23,7 @@ db.serialize(() => {
     user2_id INTEGER NOT NULL,
     last_message TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_by TEXT DEFAULT '',
     UNIQUE(user1_id, user2_id)
   )`);
 
@@ -32,7 +33,8 @@ db.serialize(() => {
     sender_id INTEGER NOT NULL,
     content TEXT NOT NULL,
     type TEXT DEFAULT 'text',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_by TEXT DEFAULT ''
   )`);
 
   db.run(`CREATE TABLE IF NOT EXISTS posts (

@@ -201,9 +201,10 @@ app.get('/api/chats/:userId', (req, res) => {
             u.id as other_user_id, u.username, u.profilePic
      FROM chats c
      JOIN users u ON (u.id = c.user1_id OR u.id = c.user2_id) AND u.id != ?
-     WHERE c.user1_id = ? OR c.user2_id = ?
+     WHERE (c.user1_id = ? OR c.user2_id = ?) 
+     AND (c.deleted_by IS NULL OR c.deleted_by NOT LIKE '%|' || ? || '|%')
      ORDER BY c.updated_at DESC`,
-    [userId, userId, userId],
+    [userId, userId, userId, userId],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(rows);
@@ -211,19 +212,61 @@ app.get('/api/chats/:userId', (req, res) => {
   );
 });
 
+app.post('/api/chats/:id/delete', (req, res) => {
+  const { userId } = req.body;
+  const chatId = req.params.id;
+  db.get(`SELECT deleted_by FROM chats WHERE id = ?`, [chatId], (err, row) => {
+    if (err || !row) return res.status(404).json({ error: 'Chat not found' });
+    let deletedBy = row.deleted_by || '';
+    if (!deletedBy.includes(`|${userId}|`)) {
+      deletedBy += `|${userId}|`;
+    }
+    db.run(`UPDATE chats SET deleted_by = ? WHERE id = ?`, [deletedBy, chatId], err => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    });
+  });
+});
+
 // ─── MESSAGES ─────────────────────────────────────────────────────────────────
 
 app.get('/api/messages/:chatId', (req, res) => {
+  const { userId } = req.query;
   db.all(
     `SELECT m.*, u.username as sender_name FROM messages m
      JOIN users u ON u.id = m.sender_id
-     WHERE m.chat_id = ? ORDER BY m.created_at ASC`,
-    [req.params.chatId],
+     WHERE m.chat_id = ? 
+     AND (m.deleted_by IS NULL OR m.deleted_by NOT LIKE '%|' || ? || '|%')
+     ORDER BY m.created_at ASC`,
+    [req.params.chatId, userId || 0],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(rows);
     }
   );
+});
+
+app.post('/api/messages/:id/delete', (req, res) => {
+  const { userId, forBoth } = req.body;
+  const msgId = req.params.id;
+  if (forBoth) {
+    db.run(`UPDATE messages SET deleted_by = 'ALL' WHERE id = ?`, [msgId], err => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true, forBoth: true });
+    });
+  } else {
+    db.get(`SELECT deleted_by FROM messages WHERE id = ?`, [msgId], (err, row) => {
+      if (err || !row) return res.status(404).json({ error: 'Message not found' });
+      let deletedBy = row.deleted_by || '';
+      if (!deletedBy.includes(`|${userId}|`)) {
+        deletedBy += `|${userId}|`;
+      }
+      db.run(`UPDATE messages SET deleted_by = ? WHERE id = ?`, [deletedBy, msgId], err => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+      });
+    });
+  }
 });
 
 app.post('/api/upload', upload.single('image'), (req, res) => {

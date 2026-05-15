@@ -230,6 +230,12 @@ function initSocket() {
   });
 
   socket.on('receiveMessage', (msg) => {
+    if (msg.type === 'system' && msg.content.startsWith('MSG_DELETED:')) {
+      const msgId = msg.content.split(':')[1];
+      const el = document.getElementById(`msg-${msgId}`);
+      if (el) el.remove();
+      return;
+    }
     if (currentChat && msg.chat_id === currentChat.chatId) {
       appendMessage(msg);
       scrollMessages();
@@ -316,6 +322,15 @@ async function loadChats() {
       const li = document.createElement('li');
       li.className = 'chat-item';
       li.onclick = () => openChat(c.chat_id, { userId: c.other_user_id, username: c.username, profilePic: c.profilePic });
+      
+      // Long press / right click to delete chat
+      li.oncontextmenu = (e) => {
+        e.preventDefault();
+        if (confirm('Delete this chat? (Only for you)')) {
+          deleteChat(c.chat_id);
+        }
+      };
+
       li.innerHTML = `
         <div class="chat-avatar" onclick="event.stopPropagation(); viewOtherProfile(${c.other_user_id},'${esc(c.username)}','${c.profilePic||''}')">
           <img src="${avatarSrc(c.profilePic, c.username)}" alt="${c.username}">
@@ -394,7 +409,7 @@ async function openChat(chatId, otherUser) {
   document.getElementById('typing-indicator').classList.add('hidden');
 
   try {
-    const msgs = await get(`/api/messages/${chatId}`);
+    const msgs = await get(`/api/messages/${chatId}?userId=${currentUser.userId}`);
     msgs.forEach(m => appendMessage(m));
     scrollMessages();
   } catch(e) { console.error(e); }
@@ -421,6 +436,13 @@ function appendMessage(msg) {
   const wrap = document.createElement('div');
   const isMe = String(msg.sender_id) === String(currentUser.userId);
   wrap.className = `msg-wrap ${isMe ? 'me' : 'them'}`;
+  wrap.id = `msg-${msg.id}`;
+
+  // Long press / right click to delete message
+  wrap.oncontextmenu = (e) => {
+    e.preventDefault();
+    showDeleteMessageMenu(msg.id, isMe);
+  };
 
   const clickAttr = isMe ? `onclick="navigate('profile')"` : `onclick="viewOtherProfile(${currentChat.otherUser.userId},'${esc(currentChat.otherUser.username)}','${currentChat.otherUser.profilePic}')"`;
   const avatar = `<img class="msg-avatar" src="${isMe ? avatarSrc(currentUser.profilePic, currentUser.username) : avatarSrc(currentChat.otherUser.profilePic, currentChat.otherUser.username)}" alt="avatar" style="cursor:pointer" ${clickAttr}>`;
@@ -455,6 +477,36 @@ function appendMessage(msg) {
       <span class="msg-time">${formatTime(msg.created_at)}</span>
     </div>`;
   document.getElementById('chat-messages').appendChild(wrap);
+}
+
+function showDeleteMessageMenu(msgId, isMe) {
+  const options = ['Delete for me'];
+  if (isMe) options.push('Delete for both');
+  
+  const choice = prompt(`Select deletion option for this message:\n1. Delete for me${isMe ? '\n2. Delete for both' : ''}`);
+  if (choice === '1') {
+    deleteMessage(msgId, false);
+  } else if (choice === '2' && isMe) {
+    deleteMessage(msgId, true);
+  }
+}
+
+async function deleteMessage(msgId, forBoth) {
+  try {
+    await post(`/api/messages/${msgId}/delete`, { userId: currentUser.userId, forBoth });
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) el.remove();
+    toast('Message deleted', 'success');
+    if (forBoth) socket.emit('sendMessage', { chatId: currentChat.chatId, senderId: currentUser.userId, content: 'MSG_DELETED:' + msgId, type: 'system' });
+  } catch(e) { toast('Could not delete message', 'error'); }
+}
+
+async function deleteChat(chatId) {
+  try {
+    await post(`/api/chats/${chatId}/delete`, { userId: currentUser.userId });
+    loadChats();
+    toast('Chat deleted', 'success');
+  } catch(e) { toast('Could not delete chat', 'error'); }
 }
 
 function scrollMessages() {
@@ -1087,12 +1139,18 @@ function showInAppNotification(username) {
   const text = document.getElementById('notif-text');
   text.textContent = `${username} sent u a message`;
   el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('show'), 10);
+  
+  // Reset animation
+  el.classList.remove('show');
+  void el.offsetWidth; // force reflow
+  el.classList.add('show');
   
   clearTimeout(notifTimer);
   notifTimer = setTimeout(() => {
     el.classList.remove('show');
-    setTimeout(() => el.classList.add('hidden'), 400);
+    setTimeout(() => {
+      if (!el.classList.contains('show')) el.classList.add('hidden');
+    }, 400);
   }, 2500);
 }
 
