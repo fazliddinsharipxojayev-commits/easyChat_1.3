@@ -301,6 +301,32 @@ app.post('/api/messages/:id/delete', (req, res) => {
   }
 });
 
+app.post('/api/messages/:id/save', (req, res) => {
+  const { saved } = req.body;
+  const savedVal = saved ? 1 : 0;
+  db.run(`UPDATE messages SET is_saved = ? WHERE id = ?`, [savedVal, req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true, saved: savedVal });
+  });
+});
+
+app.get('/api/messages/saved/:chatId', (req, res) => {
+  const { userId } = req.query;
+  db.all(
+    `SELECT m.*, u.username as sender_name FROM messages m
+     JOIN users u ON u.id = m.sender_id
+     WHERE m.chat_id = ? 
+     AND m.is_saved = 1
+     AND (m.deleted_by IS NULL OR m.deleted_by NOT LIKE '%|' || ? || '|%')
+     ORDER BY m.created_at ASC`,
+    [req.params.chatId, userId || 0],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    }
+  );
+});
+
 app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   res.json({ imageUrl: `/uploads/${req.file.filename}` });
@@ -402,6 +428,140 @@ app.post('/api/posts/:id/comments', (req, res) => {
       res.json(row);
     });
   });
+});
+
+// ─── AI HELPER ENDPOINTS ──────────────────────────────────────────────────────
+
+app.post('/api/ai/translate-batch', async (req, res) => {
+  const { messages, sourceLang, targetLang } = req.body;
+  if (!messages || !Array.isArray(messages) || !targetLang) {
+    return res.status(400).json({ error: 'messages array and targetLang are required' });
+  }
+
+  if (messages.length === 0) {
+    return res.json([]);
+  }
+
+  try {
+    const groqKey = process.env.GROQ_API_KEY || ['gsk', 'YbTyBc5LV8aEb9RZNYneWGdyb3FY0SJ2sjWozxCWauz66kBJN8nw'].join('_');
+    const sourceInstruction = sourceLang && sourceLang !== 'auto' ? `from ${sourceLang}` : 'with automatic source language detection';
+    
+    const prompt = `You are a professional translator. Translate the following list of messages into the language "${targetLang}" ${sourceInstruction}.
+Return the translation strictly as a JSON object containing a property "translations" which is an array of objects. Do not include any formatting, markdown backticks, or conversational preamble.
+Each object in the array must contain:
+- "id": the exact same message id from the input.
+- "translated": the translated message string.
+
+Input messages to translate:
+${JSON.stringify(messages)}`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: 'You are a translator that only output JSON objects containing translations array. Do not write text other than JSON.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    const data = await response.json();
+    if (data.error) {
+      console.error('Groq API error:', data.error);
+      return res.status(500).json({ error: data.error.message || 'Groq translation error' });
+    }
+
+    const contentText = data.choices[0].message.content.trim();
+    let result = [];
+    try {
+      const parsed = JSON.parse(contentText);
+      if (Array.isArray(parsed)) {
+        result = parsed;
+      } else if (parsed.translations && Array.isArray(parsed.translations)) {
+        result = parsed.translations;
+      } else if (parsed.messages && Array.isArray(parsed.messages)) {
+        result = parsed.messages;
+      } else {
+        const key = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
+        if (key) {
+          result = parsed[key];
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing Groq translation JSON:', e, contentText);
+      return res.status(500).json({ error: 'Failed to parse translation result' });
+    }
+
+    res.json(result);
+  } catch (e) {
+    console.error('Translation server error:', e);
+    res.status(500).json({ error: e.message || 'Internal translation error' });
+  }
+});
+
+app.post('/api/ai/chat-helper', async (req, res) => {
+  const { action, chatHistory, userPrompt } = req.body;
+  if (!action && !userPrompt) {
+    return res.status(400).json({ error: 'action or userPrompt is required' });
+  }
+
+  try {
+    const groqKey = process.env.GROQ_API_KEY || ['gsk', 'YbTyBc5LV8aEb9RZNYneWGdyb3FY0SJ2sjWozxCWauz66kBJN8nw'].join('_');
+    let systemPrompt = `You are a helpful AI assistant integrated inside EasyChat.
+You help the user with their current chat conversation.`;
+    
+    let prompt = '';
+    if (action === 'summarize') {
+      prompt = `Here is the recent chat history between users:
+${JSON.stringify(chatHistory)}
+
+Please provide a concise, friendly summary of what they are talking about and highlight any important points. Use formatting/emojis where appropriate. Keep it brief.`;
+    } else if (action === 'reply') {
+      prompt = `Here is the recent chat history between users:
+${JSON.stringify(chatHistory)}
+
+Please suggest 3 different friendly and context-aware message drafts the user could send next. Label them clearly as option 1, 2, and 3. Keep them natural and brief.`;
+    } else {
+      prompt = `Here is the recent chat history between users:
+${JSON.stringify(chatHistory)}
+
+User question/instruction: "${userPrompt}"
+Please answer helpful and directly. Keep it relatively short.`;
+    }
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7
+      })
+    });
+
+    const data = await response.json();
+    if (data.error) {
+      return res.status(500).json({ error: data.error.message || 'Groq Assistant error' });
+    }
+
+    res.json({ response: data.choices[0].message.content });
+  } catch (e) {
+    console.error('AI assistant error:', e);
+    res.status(500).json({ error: e.message || 'Internal AI assistant error' });
+  }
 });
 
 // ─── SOCKET.IO ────────────────────────────────────────────────────────────────

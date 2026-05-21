@@ -229,15 +229,35 @@ function initSocket() {
   });
 
   socket.on('receiveMessage', (msg) => {
+    if (msg.type === 'system') {
+      if (msg.content.startsWith('MSG_DELETED:')) {
+        const msgId = msg.content.split(':')[1];
+        const el = document.getElementById(`msg-${msgId}`);
+        if (el) el.remove();
+        return;
+      }
+      if (msg.content.startsWith('MSG_SAVE_STATE:')) {
+        const parts = msg.content.split(':');
+        const msgId = parts[1];
+        const saved = parts[2] === '1';
+        const el = document.getElementById(`msg-${msgId}`);
+        if (el) {
+          el.dataset.saved = saved ? "1" : "0";
+          const icon = document.getElementById(`msg-saved-icon-${msgId}`);
+          if (icon) {
+            if (saved) {
+              icon.classList.remove('hidden');
+            } else {
+              icon.classList.add('hidden');
+            }
+          }
+        }
+        return;
+      }
+    }
+
     // Prevent duplicate processing (since messages now come via both chat room and user room)
     if (document.getElementById(`msg-${msg.id}`)) return;
-
-    if (msg.type === 'system' && msg.content.startsWith('MSG_DELETED:')) {
-      const msgId = msg.content.split(':')[1];
-      const el = document.getElementById(`msg-${msgId}`);
-      if (el) el.remove();
-      return;
-    }
     if (currentChat && String(msg.chat_id) === String(currentChat.chatId)) {
       appendMessage(msg);
       scrollMessages();
@@ -399,6 +419,7 @@ function updateOnlineStatus() {
 /* ─── OPEN / CLOSE CHAT ─────────────────────────────────────── */
 async function openChat(chatId, otherUser) {
   currentChat = { chatId, otherUser };
+  originalMessages.clear();
   const room = document.getElementById('chat-room');
   room.classList.remove('hidden');
   setTimeout(() => room.classList.add('open'), 10);
@@ -479,28 +500,294 @@ function appendMessage(msg) {
     content = `<div class="msg-bubble">${esc(msg.content)}</div>`;
   }
 
+  wrap.dataset.saved = msg.is_saved ? "1" : "0";
+
   wrap.innerHTML = `
     ${avatar}
     <div class="msg-content-wrap">
       <div class="msg-bubble-container">
         ${content}
       </div>
-      <span class="msg-time">${formatTime(msg.created_at)}</span>
+      <span class="msg-time">
+        ${formatTime(msg.created_at)}
+        <i class="fas fa-bookmark msg-saved-indicator ${msg.is_saved ? '' : 'hidden'}" id="msg-saved-icon-${msg.id}"></i>
+      </span>
     </div>`;
   document.getElementById('chat-messages').appendChild(wrap);
 }
 
+let activeCtxMsgId = null;
+let originalMessages = new Map();
+
 function showDeleteMessageMenu(msgId, isMe) {
-  const options = ['Delete for me'];
-  if (isMe) options.push('Delete for both');
-  
-  const choice = prompt(`Select deletion option for this message:\n1. Delete for me${isMe ? '\n2. Delete for both' : ''}`);
-  if (choice === '1') {
-    deleteMessage(msgId, false);
-  } else if (choice === '2' && isMe) {
-    deleteMessage(msgId, true);
+  activeCtxMsgId = msgId;
+  const deleteBothBtn = document.getElementById('ctx-delete-both');
+  if (isMe) {
+    deleteBothBtn.style.display = 'flex';
+  } else {
+    deleteBothBtn.style.display = 'none';
+  }
+
+  const el = document.getElementById(`msg-${msgId}`);
+  if (el) {
+    const isSaved = el.dataset.saved === "1";
+    document.getElementById('ctx-save-text').textContent = isSaved ? "Unsave this" : "Save this";
+    const icon = document.querySelector('#ctx-save-msg i');
+    if (icon) {
+      icon.className = isSaved ? "fas fa-bookmark" : "far fa-bookmark";
+    }
+  }
+
+  show('message-context-modal');
+}
+
+function closeMessageContext() {
+  hide('message-context-modal');
+}
+
+function handleCtxDelete(forBoth) {
+  if (activeCtxMsgId) {
+    deleteMessage(activeCtxMsgId, forBoth);
+    closeMessageContext();
   }
 }
+
+function openTranslationSettings() {
+  closeMessageContext();
+  switchAiTab('translate');
+  show('ai-helper-modal');
+}
+
+function openAiHelperModal() {
+  switchAiTab('translate');
+  const outputEl = document.getElementById('ai-assistant-output');
+  outputEl.innerHTML = `
+    <div class="ai-placeholder">
+      <i class="fas fa-comments"></i>
+      <p>Output from AI assistant will appear here...</p>
+    </div>`;
+  show('ai-helper-modal');
+}
+
+function closeAiHelperModal() {
+  hide('ai-helper-modal');
+}
+
+function switchAiTab(tab) {
+  const translateBtn = document.getElementById('tab-translate-btn');
+  const assistantBtn = document.getElementById('tab-assistant-btn');
+  const translateContent = document.getElementById('ai-tab-translate');
+  const assistantContent = document.getElementById('ai-tab-assistant');
+
+  if (tab === 'translate') {
+    translateBtn.classList.add('active');
+    assistantBtn.classList.remove('active');
+    translateContent.classList.remove('hidden');
+    assistantContent.classList.add('hidden');
+  } else {
+    translateBtn.classList.remove('active');
+    assistantBtn.classList.add('active');
+    translateContent.classList.add('hidden');
+    assistantContent.classList.remove('hidden');
+  }
+}
+
+async function translateAllMessages() {
+  if (!currentChat) return;
+
+  const sourceLang = document.getElementById('translate-source').value;
+  const targetLang = document.getElementById('translate-target').value;
+  const translateBtn = document.getElementById('start-translation-btn');
+
+  const msgElements = document.querySelectorAll('.msg-wrap');
+  const textMessages = [];
+
+  msgElements.forEach(el => {
+    const bubble = el.querySelector('.msg-bubble');
+    if (bubble) {
+      const msgId = el.id.replace('msg-', '');
+      if (!originalMessages.has(msgId)) {
+        originalMessages.set(msgId, bubble.textContent.trim());
+      }
+      textMessages.push({
+        id: msgId,
+        content: originalMessages.get(msgId)
+      });
+    }
+  });
+
+  if (textMessages.length === 0) {
+    toast('No text messages to translate', 'error');
+    return;
+  }
+
+  translateBtn.disabled = true;
+  translateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Translating…';
+
+  try {
+    const res = await fetch('/api/ai/translate-batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messages: textMessages,
+        sourceLang,
+        targetLang
+      })
+    });
+
+    const translations = await res.json();
+    if (translations.error) {
+      toast(translations.error, 'error');
+      return;
+    }
+
+    translations.forEach(t => {
+      const el = document.getElementById(`msg-${t.id}`);
+      if (el) {
+        const bubble = el.querySelector('.msg-bubble');
+        if (bubble) {
+          bubble.innerHTML = `
+            ${esc(t.translated)}
+            <br>
+            <span class="translation-badge">
+              <i class="fas fa-robot"></i> Translated to ${targetLang}
+              <span class="translation-revert-btn" onclick="event.stopPropagation(); revertMessage('${t.id}')">Revert</span>
+            </span>
+          `;
+        }
+      }
+    });
+
+    toast('Translation completed! 🎉', 'success');
+    closeAiHelperModal();
+  } catch (e) {
+    console.error(e);
+    toast('Translation failed', 'error');
+  } finally {
+    translateBtn.disabled = false;
+    translateBtn.innerHTML = '<i class="fas fa-magic"></i> Translate Chat';
+  }
+}
+
+function revertMessage(msgId) {
+  const el = document.getElementById(`msg-${msgId}`);
+  if (el && originalMessages.has(msgId)) {
+    const bubble = el.querySelector('.msg-bubble');
+    if (bubble) {
+      bubble.textContent = originalMessages.get(msgId);
+    }
+  }
+}
+
+async function triggerAiAction(action) {
+  if (!currentChat) return;
+
+  const outputEl = document.getElementById('ai-assistant-output');
+  outputEl.innerHTML = `
+    <div class="ai-placeholder">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p>AI is thinking...</p>
+    </div>`;
+
+  const msgElements = document.querySelectorAll('.msg-wrap');
+  const chatHistory = [];
+  msgElements.forEach(el => {
+    const bubble = el.querySelector('.msg-bubble');
+    const isMe = el.classList.contains('me');
+    if (bubble) {
+      const originalText = originalMessages.get(el.id.replace('msg-', '')) || bubble.textContent.trim();
+      chatHistory.push({
+        sender: isMe ? 'Me' : currentChat.otherUser.username,
+        text: originalText.split('Translated to')[0].trim()
+      });
+    }
+  });
+
+  try {
+    const res = await fetch('/api/ai/chat-helper', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action,
+        chatHistory: chatHistory.slice(-20)
+      })
+    });
+
+    const data = await res.json();
+    if (data.error) {
+      outputEl.innerHTML = `<div style="color:#ff6b6b; padding: 10px;">Error: ${esc(data.error)}</div>`;
+      return;
+    }
+
+    outputEl.innerHTML = `<div class="ai-response-text" style="color:var(--text); font-size:13px; line-height:1.6; white-space:pre-wrap; text-align:left;">${esc(data.response)}</div>`;
+  } catch(e) {
+    console.error(e);
+    outputEl.innerHTML = `<div style="color:#ff6b6b; padding: 10px;">Failed to get AI response.</div>`;
+  }
+}
+
+async function askAiAssistant() {
+  const inputEl = document.getElementById('ai-assistant-input');
+  const promptText = inputEl.value.trim();
+  if (!promptText) return;
+
+  const outputEl = document.getElementById('ai-assistant-output');
+  outputEl.innerHTML = `
+    <div class="ai-placeholder">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p>AI is thinking...</p>
+    </div>`;
+
+  const msgElements = document.querySelectorAll('.msg-wrap');
+  const chatHistory = [];
+  msgElements.forEach(el => {
+    const bubble = el.querySelector('.msg-bubble');
+    const isMe = el.classList.contains('me');
+    if (bubble) {
+      const originalText = originalMessages.get(el.id.replace('msg-', '')) || bubble.textContent.trim();
+      chatHistory.push({
+        sender: isMe ? 'Me' : currentChat.otherUser.username,
+        text: originalText.split('Translated to')[0].trim()
+      });
+    }
+  });
+
+  try {
+    const res = await fetch('/api/ai/chat-helper', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userPrompt: promptText,
+        chatHistory: chatHistory.slice(-20)
+      })
+    });
+
+    const data = await res.json();
+    if (data.error) {
+      outputEl.innerHTML = `<div style="color:#ff6b6b; padding: 10px;">Error: ${esc(data.error)}</div>`;
+      return;
+    }
+
+    outputEl.innerHTML = `<div class="ai-response-text" style="color:var(--text); font-size:13px; line-height:1.6; white-space:pre-wrap; text-align:left;">${esc(data.response)}</div>`;
+    inputEl.value = '';
+  } catch(e) {
+    console.error(e);
+    outputEl.innerHTML = `<div style="color:#ff6b6b; padding: 10px;">Failed to get AI response.</div>`;
+  }
+}
+
+function handleAiInputKey(e) {
+  if (e.key === 'Enter') {
+    askAiAssistant();
+  }
+}
+
 
 async function deleteMessage(msgId, forBoth) {
   try {
@@ -1281,4 +1568,154 @@ async function post(url, body, method = 'POST') {
     body: JSON.stringify(body)
   });
   return res.json();
+}
+
+/* ─── SAVED MESSAGES ────────────────────────────────────────── */
+async function handleCtxSave() {
+  if (!activeCtxMsgId) return;
+  const el = document.getElementById(`msg-${activeCtxMsgId}`);
+  if (!el) return;
+
+  const isSaved = el.dataset.saved === "1";
+  const newSavedState = !isSaved;
+
+  try {
+    const res = await post(`/api/messages/${activeCtxMsgId}/save`, { saved: newSavedState });
+    if (res.success) {
+      el.dataset.saved = newSavedState ? "1" : "0";
+      const icon = document.getElementById(`msg-saved-icon-${activeCtxMsgId}`);
+      if (icon) {
+        if (newSavedState) {
+          icon.classList.remove('hidden');
+        } else {
+          icon.classList.add('hidden');
+        }
+      }
+      closeMessageContext();
+      toast(newSavedState ? 'Message saved!' : 'Message unsaved', 'success');
+      
+      // Let other clients know via socket
+      socket.emit('sendMessage', {
+        chatId: currentChat.chatId,
+        senderId: currentUser.userId,
+        content: `MSG_SAVE_STATE:${activeCtxMsgId}:${newSavedState ? 1 : 0}`,
+        type: 'system'
+      });
+    }
+  } catch(e) {
+    console.error(e);
+    toast('Failed to update message save state', 'error');
+  }
+}
+
+function openSavedMessagesModal() {
+  if (!currentChat) return;
+  show('saved-messages-modal');
+  loadSavedMessages();
+}
+
+function closeSavedMessagesModal() {
+  hide('saved-messages-modal');
+}
+
+async function loadSavedMessages() {
+  const container = document.getElementById('saved-messages-list');
+  container.innerHTML = `<div class="ai-placeholder"><i class="fas fa-spinner fa-spin"></i><p>Loading saved messages...</p></div>`;
+
+  try {
+    const messages = await get(`/api/messages/saved/${currentChat.chatId}?userId=${currentUser.userId}`);
+    container.innerHTML = '';
+    
+    if (messages.length === 0) {
+      container.innerHTML = `
+        <div class="ai-placeholder">
+          <i class="far fa-bookmark"></i>
+          <p>No saved messages in this chat yet.</p>
+        </div>`;
+      return;
+    }
+
+    messages.forEach(msg => {
+      const wrap = document.createElement('div');
+      const isMe = String(msg.sender_id) === String(currentUser.userId);
+      wrap.className = `msg-wrap ${isMe ? 'me' : 'them'}`;
+      wrap.id = `saved-msg-${msg.id}`;
+
+      const avatar = `<img class="msg-avatar" src="${isMe ? avatarSrc(currentUser.profilePic, currentUser.username) : avatarSrc(currentChat.otherUser.profilePic, currentChat.otherUser.username)}" alt="avatar">`;
+
+      let content = '';
+      if (msg.type === 'image') {
+        if (msg.content.startsWith('FWD:')) {
+          const parts = msg.content.substring(4).split('|');
+          const url = parts[0];
+          const posterName = parts[2];
+          const posterPic = parts[3];
+          content = `
+            <img class="msg-image" src="${url}" alt="image" onclick="openImageFull('${url}')">
+            <div class="fwd-poster-wrap">
+              <img class="fwd-poster-avatar" src="${avatarSrc(posterPic, posterName)}" alt="poster">
+              <div class="fwd-poster-info">By <strong>${esc(posterName)}</strong></div>
+            </div>`;
+        } else {
+          content = `<img class="msg-image" src="${msg.content}" alt="image" onclick="openImageFull('${msg.content}')">`;
+        }
+      } else {
+        content = `<div class="msg-bubble">${esc(msg.content)}</div>`;
+      }
+
+      wrap.innerHTML = `
+        ${avatar}
+        <div class="msg-content-wrap">
+          <div class="msg-bubble-container">
+            ${content}
+          </div>
+          <span class="msg-time">
+            ${formatTime(msg.created_at)}
+            <span class="translation-revert-btn" onclick="unsaveFromModal(${msg.id})" style="margin-left: 8px; color: #ff6b6b; text-decoration: none;"><i class="fas fa-trash-alt"></i> Unsave</span>
+          </span>
+        </div>`;
+      container.appendChild(wrap);
+    });
+  } catch(e) {
+    console.error(e);
+    container.innerHTML = `<div style="color:#ff6b6b; text-align:center; padding:20px;">Failed to load saved messages.</div>`;
+  }
+}
+
+async function unsaveFromModal(msgId) {
+  try {
+    const res = await post(`/api/messages/${msgId}/save`, { saved: false });
+    if (res.success) {
+      const modalEl = document.getElementById(`saved-msg-${msgId}`);
+      if (modalEl) modalEl.remove();
+
+      const mainEl = document.getElementById(`msg-${msgId}`);
+      if (mainEl) {
+        mainEl.dataset.saved = "0";
+        const icon = document.getElementById(`msg-saved-icon-${msgId}`);
+        if (icon) icon.classList.add('hidden');
+      }
+
+      const container = document.getElementById('saved-messages-list');
+      if (container.children.length === 0) {
+        container.innerHTML = `
+          <div class="ai-placeholder">
+            <i class="far fa-bookmark"></i>
+            <p>No saved messages in this chat yet.</p>
+          </div>`;
+      }
+      toast('Message unsaved', 'success');
+      
+      // Let other clients know via socket
+      socket.emit('sendMessage', {
+        chatId: currentChat.chatId,
+        senderId: currentUser.userId,
+        content: `MSG_SAVE_STATE:${msgId}:0`,
+        type: 'system'
+      });
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Failed to unsave message', 'error');
+  }
 }

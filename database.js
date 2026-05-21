@@ -34,8 +34,13 @@ db.serialize(() => {
     content TEXT NOT NULL,
     type TEXT DEFAULT 'text',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    deleted_by TEXT DEFAULT ''
+    deleted_by TEXT DEFAULT '',
+    is_saved INTEGER DEFAULT 0
   )`);
+
+  db.run(`ALTER TABLE messages ADD COLUMN is_saved INTEGER DEFAULT 0`, (err) => {
+    // Ignore error if column already exists
+  });
 
   db.run(`CREATE TABLE IF NOT EXISTS posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

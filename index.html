@@ -367,6 +367,14 @@
             <h3 id="chat-header-name">User</h3>
             <span id="chat-status" class="chat-status-dot"></span>
           </div>
+          <div class="chat-header-actions">
+            <button class="chat-saved-btn" id="chat-saved-btn" onclick="openSavedMessagesModal()" title="Saved Messages">
+              <i class="fas fa-bookmark text-glow"></i>
+            </button>
+            <button class="chat-ai-btn" id="chat-ai-btn" onclick="openAiHelperModal()" title="AI Helper">
+              <i class="fas fa-robot text-glow"></i>
+            </button>
+          </div>
         </header>
         <div id="chat-messages" class="chat-messages"></div>
         <div id="typing-indicator" class="typing-indicator hidden">
@@ -425,6 +433,120 @@
             <button class="primary-btn" id="confirm-upload-btn" onclick="confirmImageUpload()">
               <i class="fas fa-paper-plane"></i> <span id="confirm-btn-text">Send</span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MESSAGE CONTEXT MODAL -->
+      <div id="message-context-modal" class="modal-overlay hidden" onclick="closeMessageContext()">
+        <div class="modal-content context-menu-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h3>Message Options</h3>
+            <button class="modal-close" onclick="closeMessageContext()"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="context-options-list">
+            <button class="context-btn danger" id="ctx-delete-me" onclick="handleCtxDelete(false)">
+              <i class="fas fa-trash"></i> <span>Delete for me</span>
+            </button>
+            <button class="context-btn danger" id="ctx-delete-both" onclick="handleCtxDelete(true)">
+              <i class="fas fa-trash-alt"></i> <span>Delete for both</span>
+            </button>
+            <button class="context-btn accent" onclick="openTranslationSettings()">
+              <i class="fas fa-language"></i> <span>Translate all messages</span>
+            </button>
+            <button class="context-btn accent" id="ctx-save-msg" onclick="handleCtxSave()">
+              <i class="fas fa-bookmark"></i> <span id="ctx-save-text">Save this</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI HELPER MODAL -->
+      <div id="ai-helper-modal" class="modal-overlay hidden" onclick="closeAiHelperModal()">
+        <div class="modal-content ai-helper-modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h3><i class="fas fa-robot text-glow"></i> AI Assistant</h3>
+            <button class="modal-close" onclick="closeAiHelperModal()"><i class="fas fa-times"></i></button>
+          </div>
+          
+          <div class="ai-helper-tabs">
+            <button class="ai-tab-btn active" id="tab-translate-btn" onclick="switchAiTab('translate')">
+              <i class="fas fa-language"></i> Translate
+            </button>
+            <button class="ai-tab-btn" id="tab-assistant-btn" onclick="switchAiTab('assistant')">
+              <i class="fas fa-sparkles"></i> AI Assistant
+            </button>
+          </div>
+
+          <!-- Translate Content -->
+          <div id="ai-tab-translate" class="ai-tab-content">
+            <div class="settings-group">
+              <div class="settings-label">Source Language</div>
+              <select id="translate-source" class="lang-select full-width">
+                <option value="auto">Automatic (Detect)</option>
+                <option value="Uzbek">Uzbek</option>
+                <option value="Russian">Russian</option>
+                <option value="English">English</option>
+                <option value="Chinese">Chinese</option>
+                <option value="Hindi">Indian (Hindi)</option>
+                <option value="German">German</option>
+                <option value="French">French</option>
+              </select>
+            </div>
+            <div class="settings-group" style="margin-top: 15px;">
+              <div class="settings-label">Target Language</div>
+              <select id="translate-target" class="lang-select full-width">
+                <option value="Uzbek">Uzbek</option>
+                <option value="Russian">Russian</option>
+                <option value="English" selected>English</option>
+                <option value="Chinese">Chinese</option>
+                <option value="Hindi">Indian (Hindi)</option>
+                <option value="German">German</option>
+                <option value="French">French</option>
+              </select>
+            </div>
+            <div style="margin-top: 20px;">
+              <button class="primary-btn" id="start-translation-btn" onclick="translateAllMessages()">
+                <i class="fas fa-magic"></i> Translate Chat
+              </button>
+            </div>
+          </div>
+
+          <!-- AI Assistant Content -->
+          <div id="ai-tab-assistant" class="ai-tab-content hidden">
+            <div class="quick-actions">
+              <button class="quick-action-btn" onclick="triggerAiAction('summarize')">
+                <i class="fas fa-align-left"></i> Summarize Chat
+              </button>
+              <button class="quick-action-btn" onclick="triggerAiAction('reply')">
+                <i class="fas fa-reply"></i> Suggest Replies
+              </button>
+            </div>
+            
+            <div class="ai-prompt-wrap" style="margin-top: 15px;">
+              <input type="text" id="ai-assistant-input" placeholder="Ask AI helper something..." onkeydown="handleAiInputKey(event)">
+              <button class="comment-send" onclick="askAiAssistant()"><i class="fas fa-paper-plane"></i></button>
+            </div>
+
+            <div id="ai-assistant-output" class="ai-assistant-output" style="margin-top: 15px;">
+              <div class="ai-placeholder">
+                <i class="fas fa-comments"></i>
+                <p>Output from AI assistant will appear here...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SAVED MESSAGES MODAL -->
+      <div id="saved-messages-modal" class="modal-overlay hidden" onclick="closeSavedMessagesModal()">
+        <div class="modal-content saved-messages-modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h3><i class="fas fa-bookmark text-glow"></i> Saved Messages</h3>
+            <button class="modal-close" onclick="closeSavedMessagesModal()"><i class="fas fa-times"></i></button>
+          </div>
+          <div id="saved-messages-list" class="chat-messages" style="max-height: 400px; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px;">
+            <!-- Saved messages will be rendered dynamically -->
           </div>
         </div>
       </div>
