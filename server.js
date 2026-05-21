@@ -7,13 +7,89 @@ const path = require('path');
 const db = require('./database');
 const fs = require('fs');
 
+// ---------- Database reset for fresh state on each server start ----------
+// For the Render deployment we want a clean slate on every restart so that
+// refreshing the site forces a new login and clears all chats/posts.
+// This mirrors the original development behaviour where the DB is in‑memory.
+// WARNING: This WILL DELETE ALL persisted data on each restart.
+if (process.env.RESET_DB_ON_START === 'true' || process.env.NODE_ENV === 'production') {
+  db.serialize(() => {
+    // Drop existing tables if they exist
+    db.run('DROP TABLE IF EXISTS friendships');
+    db.run('DROP TABLE IF EXISTS post_comments');
+    db.run('DROP TABLE IF EXISTS post_likes');
+    db.run('DROP TABLE IF EXISTS posts');
+    db.run('DROP TABLE IF EXISTS messages');
+    db.run('DROP TABLE IF EXISTS chats');
+    db.run('DROP TABLE IF EXISTS users');
+    // Re‑create tables (same schema as in database.js)
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      profilePic TEXT DEFAULT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS chats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user1_id INTEGER NOT NULL,
+      user2_id INTEGER NOT NULL,
+      last_message TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      deleted_by TEXT DEFAULT '',
+      UNIQUE(user1_id, user2_id)
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chat_id INTEGER NOT NULL,
+      sender_id INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      type TEXT DEFAULT 'text',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      deleted_by TEXT DEFAULT '',
+      is_saved INTEGER DEFAULT 0
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      image_url TEXT NOT NULL,
+      caption TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS post_likes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('like','dislike')),
+      UNIQUE(post_id, user_id)
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS post_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS friendships (
+      user_id INTEGER NOT NULL,
+      friend_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, friend_id)
+    )`);
+    console.log('Database reset: all tables dropped and recreated.');
+  });
+}
+// -----------------------------------------------------------------------
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 // Middleware to prevent caching of sensitive entry files
 app.use((req, res, next) => {
-  if (req.url === '/' || req.url === '/index.html' || req.url.includes('script.js')) {
+  // Apply no-cache headers for critical assets to ensure fresh refresh
+  if (req.url === '/' || req.url.endsWith('.html') || req.url.endsWith('.css') || req.url.endsWith('.js')) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
