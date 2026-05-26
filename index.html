@@ -580,9 +580,32 @@
           </div>
         </div>
       </div>
-
+<!-- GROUP CREATION MODAL -->
+<div id="group-modal" class="modal-overlay hidden" onclick="closeGroupModal(event)">
+  <div class="modal-content" style="max-width:400px;">
+    <div class="modal-header">
+      <h3>Create Group</h3>
+      <button class="modal-close" onclick="closeGroupModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="margin-bottom:8px;">
+      <input type="text" id="group-name-input" placeholder="Group name" class="full-width" style="padding:8px;border:1px solid var(--border);border-radius:6px;"/>
+    </div>
+    <div id="group-friends-list" class="group-friends-list" style="max-height:300px;overflow:auto;margin:12px 0;">
+      <!-- friends rendered here -->
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="primary-btn" onclick="createGroup()">Create Group</button>
+      <button class="secondary-btn" onclick="closeGroupModal()">Cancel</button>
+    </div>
+  </div>
+</div>
       <!-- BOTTOM NAV -->
       <nav class="bottom-nav glass" id="bottom-nav">
+          <button class="nav-btn" id="nav-create-group" onclick="openGroupModal()" title="Create Group">
+            <i class="fas fa-plus"></i>
+            <span>Group</span>
+          </button>
+
         <button class="nav-btn active" id="nav-home" onclick="navigate('home')" title="Home">
           <i class="fas fa-house"></i>
           <span>Home</span>

@@ -24,7 +24,18 @@ db.serialize(() => {
     last_message TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_by TEXT DEFAULT '',
-    UNIQUE(user1_id, user2_id)
+    is_group INTEGER DEFAULT 0,
+    group_name TEXT DEFAULT ''
+  )`);
+
+  // We can't safely ALTER TABLE ADD UNIQUE so we just catch the error if they exist.
+  db.run(`ALTER TABLE chats ADD COLUMN is_group INTEGER DEFAULT 0`, (err) => {});
+  db.run(`ALTER TABLE chats ADD COLUMN group_name TEXT DEFAULT ''`, (err) => {});
+
+  db.run(`CREATE TABLE IF NOT EXISTS group_members (
+    chat_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    UNIQUE(chat_id, user_id)
   )`);
 
   db.run(`CREATE TABLE IF NOT EXISTS messages (
