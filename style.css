@@ -266,26 +266,34 @@ a{color:var(--accent);text-decoration:none}
 .msg-content-wrap{display:flex;flex-direction:column}
 .msg-wrap.me .msg-content-wrap{align-items:flex-end}
 
+.msg-bubble{padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.5;word-break:break-word}
+
 .voice-msg-bubble {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--text2);
-  padding: 8px 12px;
-  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  padding: 4px 8px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .voice-msg-bubble audio {
-  max-width: 250px;
+  max-width: 200px;
+  height: 32px;
+}
+.msg-wrap.them .voice-msg-bubble audio {
+  filter: invert(1) hue-rotate(180deg);
+}
+body.light-mode .msg-wrap.them .voice-msg-bubble audio {
+  filter: none;
 }
 
 .msg-wrap.me .msg-bubble{background:linear-gradient(135deg,var(--accent),#9b87ff);color:#fff;border-bottom-right-radius:4px}
-.msg-wrap.them .msg-bubble{background:var(--bg2);border:1px solid var(--border);border-bottom-left-radius:4px}
+.msg-wrap.them .msg-bubble{background:var(--bg2);border:1px solid var(--glass-border);border-bottom-left-radius:4px}
 body.light-mode .msg-wrap.them .msg-bubble {
   background: #ffffff;
-  border: 1px solid #1a1a2e;
-  color: #1a1a2e;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 .recording-indicator { display: flex; align-items: center; gap: 8px; flex: 1; padding: 0 12px; font-weight: bold; color: #ff5b5b; }
 .recording-dot { animation: blink 1s infinite; font-size: 10px; }

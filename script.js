@@ -497,7 +497,7 @@ function appendMessage(msg) {
       content = `<img class="msg-image" src="${msg.content}" alt="image" onclick="openImageFull('${msg.content}')">`;
     }
   } else if (msg.type === 'audio') {
-    content = `<div class="msg-bubble voice-msg-bubble"><i class="fas fa-headphones"></i> <span>Voice Message</span><audio controls src="${msg.content}" preload="metadata"></audio></div>`;
+    content = `<div class="msg-bubble voice-msg-bubble"><i class="fas fa-headphones" style="font-size:18px;margin-right:4px;"></i><audio controls src="${msg.content}" preload="metadata"></audio></div>`;
   } else {
     content = `<div class="msg-bubble">${esc(msg.content)}</div>`;
   }
