@@ -134,12 +134,10 @@
       <header class="top-bar glass" id="top-bar">
         <div class="top-bar-left">
           <div class="top-logo"><i class="fas fa-bolt"></i></div>
+          <button class="nav-btn" id="nav-create-group" onclick="openGroupModal()" title="Create Group"><i class="fas fa-plus"></i></button>
           <h2 id="top-title">Chats</h2>
         </div>
         <div class="top-bar-right" id="top-actions">
-          <button class="nav-btn" id="nav-create-group" onclick="openGroupModal()" title="Create Group">
-            <i class="fas fa-plus"></i>
-          </button>
           <!-- Dynamic action buttons injected by JS -->
         </div>
       </header>
@@ -604,10 +602,7 @@
 </div>
       <!-- BOTTOM NAV -->
       <nav class="bottom-nav glass" id="bottom-nav">
-          <button class="nav-btn" id="nav-create-group" onclick="openGroupModal()" title="Create Group">
-            <i class="fas fa-plus"></i>
-            <span>Group</span>
-          </button>
+
 
         <button class="nav-btn active" id="nav-home" onclick="navigate('home')" title="Home">
           <i class="fas fa-house"></i>
