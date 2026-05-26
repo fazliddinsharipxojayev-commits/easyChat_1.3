@@ -273,23 +273,20 @@ a{color:var(--accent);text-decoration:none}
   display: flex;
   align-items: center;
   gap: 8px;
+  background: linear-gradient(135deg,var(--accent),#9b87ff) !important;
+  color: #fff !important;
+  border: none !important;
 }
 .voice-msg-bubble audio {
   max-width: 200px;
   height: 32px;
-}
-.msg-wrap.them .voice-msg-bubble audio {
-  filter: invert(1) hue-rotate(180deg) contrast(1.2);
-}
-body.light-mode .msg-wrap.them .voice-msg-bubble audio {
-  filter: none;
 }
 
 .msg-wrap.me .msg-bubble{background:linear-gradient(135deg,var(--accent),#9b87ff);color:#fff;border-bottom-right-radius:4px}
 .msg-wrap.them .msg-bubble{background:var(--bg2);border:1px solid var(--glass-border);border-bottom-left-radius:4px}
 body.light-mode .msg-wrap.them .msg-bubble {
   background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.25);
+  border: 1px solid #000000;
   color: var(--text);
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
