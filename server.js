@@ -421,6 +421,24 @@ app.post('/api/posts', upload.single('image'), (req, res) => {
   });
 });
 
+app.post('/api/posts/:id/delete', (req, res) => {
+  const { userId } = req.body;
+  const postId = req.params.id;
+  db.get(`SELECT user_id FROM posts WHERE id = ?`, [postId], (err, row) => {
+    if (err || !row) return res.status(404).json({ error: 'Post not found' });
+    if (String(row.user_id) !== String(userId)) return res.status(403).json({ error: 'Unauthorized' });
+
+    db.serialize(() => {
+      db.run(`DELETE FROM post_likes WHERE post_id = ?`, [postId]);
+      db.run(`DELETE FROM post_comments WHERE post_id = ?`, [postId]);
+      db.run(`DELETE FROM posts WHERE id = ?`, [postId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+      });
+    });
+  });
+});
+
 app.get('/api/posts', (req, res) => {
   const { userId } = req.query;
   db.all(
@@ -694,6 +712,15 @@ io.on('connection', (socket) => {
         });
       }
     );
+  });
+
+  socket.on('broadcastSaveState', (data) => {
+    const { chatId, msgId, saved } = data;
+    // Broadcast the system state change to the other user in the chat room
+    socket.to(`chat_${chatId}`).emit('receiveMessage', {
+      type: 'system',
+      content: `MSG_SAVE_STATE:${msgId}:${saved ? 1 : 0}`
+    });
   });
 
   socket.on('disconnect', () => {

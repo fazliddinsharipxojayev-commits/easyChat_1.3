@@ -343,13 +343,18 @@ body.light-mode .msg-wrap.them .msg-bubble {
 .other-profile-back{padding:12px 12px 0}
 
 /* Profile posts grid (like Instagram) */
-.profile-posts-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:14px}
-.profile-grid-item{aspect-ratio:1;overflow:hidden;cursor:pointer;background:var(--bg3);position:relative}
-.profile-grid-item img{width:100%;height:100%;object-fit:cover;transition:transform .25s,opacity .25s}
-.profile-grid-item:hover img{transform:scale(1.06);opacity:.85}
-.profile-grid-item .grid-overlay{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;gap:12px;opacity:0;transition:opacity .2s;color:#fff;font-size:13px;font-weight:700}
-.profile-grid-item:hover .grid-overlay{opacity:1}
-.profile-grid-item .grid-overlay span{display:flex;align-items:center;gap:5px}
+.profile-posts-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px;padding:0 16px}
+.profile-grid-item{display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.profile-grid-item img{width:100%;aspect-ratio:1;object-fit:cover;cursor:pointer;transition:transform .2s}
+.profile-grid-item:hover img{transform:scale(1.02)}
+.profile-grid-item .post-stats-below{display:flex;align-items:center;justify-content:space-around;padding:10px 8px;font-size:13px;font-weight:600;color:var(--text);gap:4px}
+.profile-grid-item .post-stats-below span{display:flex;align-items:center;gap:4px}
+.profile-grid-item .post-stats-below i{color:var(--text3)}
+.profile-grid-item .post-stats-below .fa-heart{color:#ff5b5b}
+.profile-grid-item .post-stats-below .fa-thumbs-down{color:var(--text2)}
+.profile-grid-item .post-stats-below .fa-comment{color:var(--accent)}
+.delete-post-btn{color:#ff5b5b;background:rgba(255,91,91,0.1);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.delete-post-btn:hover{background:rgba(255,91,91,0.2)}
 
 /* ─── 5-BUTTON NAV FIX ───────────────────────────────────────── */
 .bottom-nav{padding:0 2px}
@@ -713,6 +718,19 @@ body.light-mode .fwd-poster-info strong {
 }
 .translation-revert-btn:hover {
   color: var(--text);
+}
+
+/* For badges inside the user's own messages (blue gradient background) */
+.msg-wrap.me .translation-badge {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.msg-wrap.me .translation-revert-btn {
+  color: rgba(255, 255, 255, 0.8);
+}
+.msg-wrap.me .translation-revert-btn:hover {
+  color: #fff;
 }
 
 /* SAVED MESSAGES STYLES */

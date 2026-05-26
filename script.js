@@ -1007,13 +1007,32 @@ function buildGridItem(p) {
   const div = document.createElement('div');
   div.className = 'profile-grid-item';
   div.innerHTML = `
-    <img src="${p.image_url}" alt="post" loading="lazy">
-    <div class="grid-overlay">
+    <img src="${p.image_url}" alt="post" loading="lazy" onclick="openImageFull('${p.image_url}')">
+    <div class="post-stats-below">
       <span><i class="fas fa-heart"></i> ${p.like_count || 0}</span>
+      <span><i class="fas fa-thumbs-down"></i> ${p.dislike_count || 0}</span>
       <span><i class="fas fa-comment"></i> ${p.comment_count || 0}</span>
+      ${p.user_id === currentUser.userId ? `<button class="delete-post-btn" onclick="event.stopPropagation(); deletePost(${p.id})"><i class="fas fa-trash"></i></button>` : ''}
     </div>`;
-  div.onclick = () => openImageFull(p.image_url);
   return div;
+}
+
+async function deletePost(postId) {
+  if (!confirm('Are you sure you want to delete this post?')) return;
+  try {
+    const res = await post(`/api/posts/${postId}/delete`, { userId: currentUser.userId });
+    if (res.success) {
+      toast('Post deleted', 'success');
+      // Refresh profile posts
+      if (activeTab === 'profile') renderProfile();
+      else if (activeTab === 'home') loadHomePosts();
+    } else {
+      toast(res.error || 'Failed to delete post', 'error');
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Error deleting post', 'error');
+  }
 }
 
 function triggerAvatarUploadProfile() {
@@ -1595,11 +1614,10 @@ async function handleCtxSave() {
       toast(newSavedState ? 'Message saved!' : 'Message unsaved', 'success');
       
       // Let other clients know via socket
-      socket.emit('sendMessage', {
+      socket.emit('broadcastSaveState', {
         chatId: currentChat.chatId,
-        senderId: currentUser.userId,
-        content: `MSG_SAVE_STATE:${activeCtxMsgId}:${newSavedState ? 1 : 0}`,
-        type: 'system'
+        msgId: activeCtxMsgId,
+        saved: newSavedState
       });
     }
   } catch(e) {
