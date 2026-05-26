@@ -380,12 +380,42 @@
         <div id="typing-indicator" class="typing-indicator hidden">
           <span></span><span></span><span></span>
         </div>
-        <div class="chat-input-bar glass">
+        <div class="chat-input-bar glass" id="chat-input-bar-default">
           <button class="icon-btn" onclick="document.getElementById('chat-image-input').click()" title="Send image">
             <i class="fas fa-image"></i>
           </button>
           <input type="text" id="msg-input" placeholder="Message…" onkeydown="handleMsgKey(event)" oninput="handleTyping()">
+          <button class="icon-btn" id="voice-record-btn" onclick="startVoiceRecording()" title="Record Voice">
+            <i class="fas fa-microphone"></i>
+          </button>
           <button class="send-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+        </div>
+        
+        <div class="chat-input-bar glass hidden" id="chat-input-bar-recording">
+          <div class="recording-indicator">
+            <i class="fas fa-circle recording-dot"></i>
+            <span id="recording-timer">00:00</span>
+          </div>
+          <button class="icon-btn danger" onclick="cancelVoiceRecording()" title="Cancel">
+            <i class="fas fa-trash"></i>
+          </button>
+          <button class="send-btn" onclick="stopVoiceRecording()" title="Stop & Show Options">
+            <i class="fas fa-stop"></i>
+          </button>
+        </div>
+
+        <div class="chat-input-bar glass hidden" id="chat-input-bar-recorded">
+          <div class="recorded-options" style="display:flex; gap:8px; width:100%;">
+            <button class="icon-btn danger" onclick="cancelVoiceRecording()" title="Discard">
+              <i class="fas fa-trash"></i>
+            </button>
+            <button class="primary-btn" onclick="sendVoiceMessage()" style="flex:1;">
+              <i class="fas fa-paper-plane"></i> Send Audio
+            </button>
+            <button class="primary-btn" onclick="transcribeVoiceMessage()" style="flex:1; background:var(--accent2);">
+              <i class="fas fa-language"></i> Transcribe
+            </button>
+          </div>
         </div>
       </div>
 

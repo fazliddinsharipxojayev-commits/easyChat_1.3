@@ -496,6 +496,8 @@ function appendMessage(msg) {
     } else {
       content = `<img class="msg-image" src="${msg.content}" alt="image" onclick="openImageFull('${msg.content}')">`;
     }
+  } else if (msg.type === 'audio') {
+    content = `<div class="msg-bubble voice-msg-bubble"><i class="fas fa-headphones"></i> <span>Voice Message</span><audio controls src="${msg.content}" preload="metadata"></audio></div>`;
   } else {
     content = `<div class="msg-bubble">${esc(msg.content)}</div>`;
   }
@@ -1725,15 +1727,132 @@ async function unsaveFromModal(msgId) {
       toast('Message unsaved', 'success');
       
       // Let other clients know via socket
-      socket.emit('sendMessage', {
+      socket.emit('broadcastSaveState', {
         chatId: currentChat.chatId,
-        senderId: currentUser.userId,
-        content: `MSG_SAVE_STATE:${msgId}:0`,
-        type: 'system'
+        msgId: msgId,
+        saved: false
       });
     }
   } catch (e) {
     console.error(e);
     toast('Failed to unsave message', 'error');
+  }
+}
+
+/* ─── VOICE MESSAGES ─────────────────────────────────────────── */
+let mediaRecorder;
+let audioChunks = [];
+let recordingTimerInterval;
+let recordingSeconds = 0;
+let recordedAudioBlob = null;
+
+async function startVoiceRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    recordedAudioBlob = null;
+    
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+    
+    mediaRecorder.onstop = () => {
+      recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      stream.getTracks().forEach(track => track.stop());
+    };
+    
+    mediaRecorder.start();
+    
+    // UI updates
+    document.getElementById('chat-input-bar-default').classList.add('hidden');
+    document.getElementById('chat-input-bar-recording').classList.remove('hidden');
+    recordingSeconds = 0;
+    updateRecordingTimer();
+    recordingTimerInterval = setInterval(() => {
+      recordingSeconds++;
+      updateRecordingTimer();
+    }, 1000);
+    
+  } catch(e) {
+    console.error(e);
+    toast('Microphone access denied', 'error');
+  }
+}
+
+function updateRecordingTimer() {
+  const mins = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+  const secs = String(recordingSeconds % 60).padStart(2, '0');
+  document.getElementById('recording-timer').textContent = `${mins}:${secs}`;
+}
+
+function stopVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    clearInterval(recordingTimerInterval);
+    document.getElementById('chat-input-bar-recording').classList.add('hidden');
+    document.getElementById('chat-input-bar-recorded').classList.remove('hidden');
+  }
+}
+
+function cancelVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  clearInterval(recordingTimerInterval);
+  resetVoiceUI();
+}
+
+function resetVoiceUI() {
+  recordedAudioBlob = null;
+  document.getElementById('chat-input-bar-recorded').classList.add('hidden');
+  document.getElementById('chat-input-bar-recording').classList.add('hidden');
+  document.getElementById('chat-input-bar-default').classList.remove('hidden');
+}
+
+async function sendVoiceMessage() {
+  if (!recordedAudioBlob) return;
+  const formData = new FormData();
+  formData.append('audio', recordedAudioBlob, 'voice.webm'); 
+
+  try {
+    const res = await fetch('/api/upload-audio', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.audioUrl) {
+      socket.emit('sendMessage', { 
+        chatId: currentChat.chatId, 
+        senderId: currentUser.userId, 
+        content: data.audioUrl, 
+        type: 'audio' 
+      });
+      resetVoiceUI();
+    } else {
+      toast('Failed to upload audio', 'error');
+    }
+  } catch(e) {
+    console.error(e);
+    toast('Upload error', 'error');
+  }
+}
+
+async function transcribeVoiceMessage() {
+  if (!recordedAudioBlob) return;
+  toast('Transcribing...', 'success');
+  const formData = new FormData();
+  formData.append('file', recordedAudioBlob, 'voice.webm');
+  
+  try {
+    const res = await fetch('/api/ai/transcribe', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.text) {
+      resetVoiceUI();
+      document.getElementById('msg-input').value = data.text;
+      document.getElementById('msg-input').focus();
+    } else {
+      toast(data.error || 'Failed to transcribe', 'error');
+    }
+  } catch(e) {
+    console.error(e);
+    toast('Transcription error', 'error');
   }
 }

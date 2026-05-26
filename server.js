@@ -116,11 +116,15 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp/;
-    if (allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype)) {
+    const imageTypes = /jpeg|jpg|png|gif|webp/;
+    const audioTypes = /webm|ogg|mp3|wav|m4a|mp4/;
+    const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+    const isImage = imageTypes.test(ext) && imageTypes.test(file.mimetype);
+    const isAudio = audioTypes.test(ext) || file.mimetype.startsWith('audio/') || file.mimetype === 'video/webm';
+    if (isImage || isAudio) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error('Only image and audio files are allowed'));
     }
   }
 });
@@ -406,6 +410,43 @@ app.get('/api/messages/saved/:chatId', (req, res) => {
 app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   res.json({ imageUrl: `/uploads/${req.file.filename}` });
+});
+
+app.post('/api/upload-audio', upload.single('audio'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No audio uploaded' });
+  res.json({ audioUrl: `/uploads/${req.file.filename}` });
+});
+
+app.post('/api/ai/transcribe', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No audio file provided' });
+  try {
+    const fs = require('fs');
+    const fileData = fs.readFileSync(req.file.path);
+    const blob = new Blob([fileData], { type: req.file.mimetype });
+    const formData = new FormData();
+    formData.append('file', blob, req.file.originalname);
+    formData.append('model', 'whisper-large-v3');
+
+    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const errText = await response.text();
+      return res.status(response.status).json({ error: errText });
+    }
+    const data = await response.json();
+    res.json({ text: data.text });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    const fs = require('fs');
+    fs.unlink(req.file.path, () => {});
+  }
 });
 
 // ─── POSTS ────────────────────────────────────────────────────────────────────

@@ -246,9 +246,18 @@ a{color:var(--accent);text-decoration:none}
 .toggle-switch.on .toggle-knob{transform:translateX(20px)}
 
 /* ─── CHAT ROOM ──────────────────────────────────────────────── */
-.chat-room{position:absolute;inset:0;background:var(--bg);z-index:100;display:flex;flex-direction:column;transition:transform .3s ease;transform:translateX(100%)}
+.chat-room{position:absolute;inset:0;background:var(--bg) url('chat-bg-dark.png') center/cover;z-index:100;display:flex;flex-direction:column;transition:transform .3s ease;transform:translateX(100%)}
+body.light-mode .chat-room {
+  background: var(--bg) url('chat-bg-dark.png') center/cover;
+  filter: invert(1) hue-rotate(180deg);
+}
+/* We need to reverse the filter for inner elements so they don't look inverted */
+body.light-mode .chat-room > * {
+  filter: invert(1) hue-rotate(180deg);
+}
+
 .chat-room.open{transform:translateX(0)}
-.chat-header{display:flex;align-items:center;gap:12px;padding:10px 14px;height:var(--top-h);flex-shrink:0;border-bottom:1px solid var(--glass-border);border-radius:0}
+.chat-header{display:flex;align-items:center;gap:12px;padding:10px 14px;height:var(--top-h);flex-shrink:0;border-bottom:1px solid var(--glass-border);border-radius:0;background:var(--card)}
 .back-btn{width:36px;height:36px;border-radius:10px;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;transition:all .2s}
 .back-btn:hover{border-color:var(--accent);color:var(--accent)}
 .chat-header-avatar{width:38px;height:38px;border-radius:50%;background:var(--bg3);flex-shrink:0}
@@ -264,14 +273,30 @@ a{color:var(--accent);text-decoration:none}
 .msg-content-wrap{display:flex;flex-direction:column}
 .msg-wrap.me .msg-content-wrap{align-items:flex-end}
 
-.msg-bubble{padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.5;word-break:break-word}
+.voice-msg-bubble {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  padding: 8px 12px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.voice-msg-bubble audio {
+  max-width: 250px;
+}
+
 .msg-wrap.me .msg-bubble{background:linear-gradient(135deg,var(--accent),#9b87ff);color:#fff;border-bottom-right-radius:4px}
-.msg-wrap.them .msg-bubble{background:var(--bg2);border:1px solid var(--border);border-bottom-left-radius:4px}
+.msg-wrap.them .msg-bubble{background:rgba(22, 22, 30, 0.85);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--border);border-bottom-left-radius:4px}
 body.light-mode .msg-wrap.them .msg-bubble {
-  background: #ffffff;
-  border: 1px solid #1a1a2e;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0,0,0,0.1);
   color: #1a1a2e;
 }
+.recording-indicator { display: flex; align-items: center; gap: 8px; flex: 1; padding: 0 12px; font-weight: bold; color: #ff5b5b; }
+.recording-dot { animation: blink 1s infinite; font-size: 10px; }
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 .msg-image{max-width:220px;border-radius:14px;cursor:pointer;transition:transform .2s}
 .msg-image:hover{transform:scale(1.02)}
 .msg-time{font-size:10px;color:var(--text3);margin-top:3px;padding:0 4px}
