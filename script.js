@@ -834,6 +834,112 @@ function sendMessage() {
   socket.emit('stopTyping', { chatId: currentChat.chatId });
 }
 
+/* Voice Recording State */
+let mediaRecorder = null;
+let recordedBlob = null;
+let recordingTimerInterval = null;
+let recordingStartTime = null;
+
+function startVoiceRecording() {
+  if (!currentChat) return toast('Select a chat first', 'error');
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        // Show recorded UI
+        document.getElementById('chat-input-bar-recording').classList.add('hidden');
+        document.getElementById('chat-input-bar-recorded').classList.remove('hidden');
+        // Reset timer UI
+        document.getElementById('recording-timer').textContent = '00:00';
+        clearInterval(recordingTimerInterval);
+      };
+      mediaRecorder.start();
+      // Switch UI to recording bar
+      document.getElementById('chat-input-bar-default').classList.add('hidden');
+      document.getElementById('chat-input-bar-recording').classList.remove('hidden');
+      // Start timer
+      recordingStartTime = Date.now();
+      recordingTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+        const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const secs = String(elapsed % 60).padStart(2, '0');
+        document.getElementById('recording-timer').textContent = `${mins}:${secs}`;
+      }, 500);
+    })
+    .catch(err => {
+      console.error('Microphone access denied', err);
+      toast('Unable to access microphone', 'error');
+    });
+}
+
+function cancelVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  }
+  // Reset UI
+  document.getElementById('chat-input-bar-recording').classList.add('hidden');
+  document.getElementById('chat-input-bar-recorded').classList.add('hidden');
+  document.getElementById('chat-input-bar-default').classList.remove('hidden');
+  clearInterval(recordingTimerInterval);
+  document.getElementById('recording-timer').textContent = '00:00';
+  recordedBlob = null;
+}
+
+function stopVoiceRecording() {
+  if (!mediaRecorder) return;
+  mediaRecorder.stop();
+  mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  // UI will be switched in onstop handler
+}
+
+async function sendVoiceMessage() {
+  if (!recordedBlob) return toast('No recording available', 'error');
+  const formData = new FormData();
+  formData.append('audio', recordedBlob, 'voice_message.webm');
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.audioUrl) {
+      socket.emit('sendMessage', { chatId: currentChat.chatId, senderId: currentUser.userId, content: data.audioUrl, type: 'audio' });
+      toast('Voice message sent', 'success');
+    } else {
+      toast('Upload failed', 'error');
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Upload error', 'error');
+  }
+  // Reset UI back to default
+  document.getElementById('chat-input-bar-recorded').classList.add('hidden');
+  document.getElementById('chat-input-bar-default').classList.remove('hidden');
+  recordedBlob = null;
+}
+
+async function transcribeVoiceMessage() {
+  if (!recordedBlob) return toast('No recording to transcribe', 'error');
+  const formData = new FormData();
+  formData.append('audio', recordedBlob, 'voice_message.webm');
+  try {
+    const res = await fetch('/api/ai/transcribe', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.text) {
+      const input = document.getElementById('msg-input');
+      input.value = data.text;
+      toast('Transcription loaded', 'success');
+    } else {
+      toast('Transcription failed', 'error');
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Transcription error', 'error');
+  }
+}
+
+
 async function handleChatImageUpload(input) {
   if (!input.files[0] || !currentChat) return;
   const formData = new FormData();
