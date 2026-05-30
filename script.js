@@ -1970,3 +1970,106 @@ async function transcribeVoiceMessage() {
     toast('Transcription error', 'error');
   }
 }
+
+/* ─── GROUP CREATION ────────────────────────────────────────────── */
+let selectedGroupFriends = new Set();
+
+async function openGroupModal() {
+  if (!currentUser) return;
+  document.getElementById('group-name-input').value = '';
+  selectedGroupFriends.clear();
+  show('group-modal');
+  
+  const container = document.getElementById('group-friends-list');
+  container.innerHTML = '<div class="ai-placeholder"><i class="fas fa-spinner fa-spin"></i></div>';
+  
+  try {
+    const friends = await get(`/api/friends/${currentUser.userId}`);
+    container.innerHTML = '';
+    if (!friends || friends.length === 0) {
+      container.innerHTML = '<p style="text-align:center;color:var(--text-muted);font-size:14px;padding:12px;">No friends found to add.</p>';
+      return;
+    }
+    
+    friends.forEach(f => {
+      const wrap = document.createElement('div');
+      wrap.className = 'group-friend-item';
+      wrap.style.display = 'flex';
+      wrap.style.alignItems = 'center';
+      wrap.style.justifyContent = 'space-between';
+      wrap.style.padding = '8px';
+      wrap.style.borderBottom = '1px solid var(--border)';
+      
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '8px';
+      
+      left.innerHTML = `
+        <img src="${avatarSrc(f.profilePic, f.username)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
+        <span style="font-weight:600;font-size:14px;">${esc(f.username)}</span>
+      `;
+      
+      const btn = document.createElement('button');
+      btn.className = 'secondary-btn';
+      btn.style.padding = '4px 12px';
+      btn.style.fontSize = '12px';
+      btn.textContent = 'Add';
+      
+      btn.onclick = () => {
+        if (selectedGroupFriends.has(f.id)) {
+          selectedGroupFriends.delete(f.id);
+          btn.textContent = 'Add';
+          btn.style.background = '';
+          btn.style.color = '';
+        } else {
+          selectedGroupFriends.add(f.id);
+          btn.textContent = 'Added';
+          btn.style.background = 'var(--primary)';
+          btn.style.color = '#fff';
+        }
+      };
+      
+      wrap.appendChild(left);
+      wrap.appendChild(btn);
+      container.appendChild(wrap);
+    });
+    
+  } catch (e) {
+    console.error(e);
+    container.innerHTML = '<p style="text-align:center;color:#ff6b6b;font-size:14px;padding:12px;">Error loading friends.</p>';
+  }
+}
+
+function closeGroupModal(e) {
+  if (e && e.target.id !== 'group-modal' && e.target.className !== 'modal-close' && !e.target.closest('.modal-close')) {
+    if (e.target.closest('.modal-content')) return;
+  }
+  hide('group-modal');
+}
+
+async function createGroup() {
+  const name = document.getElementById('group-name-input').value.trim();
+  if (!name) return toast('Please enter a group name', 'error');
+  if (selectedGroupFriends.size === 0) return toast('Select at least one friend', 'error');
+  
+  const memberIds = Array.from(selectedGroupFriends);
+  memberIds.push(currentUser.userId); // Add creator to group
+  
+  try {
+    const res = await post('/api/create-group', {
+      groupName: name,
+      members: memberIds
+    });
+    if (res.success) {
+      toast('Group created!', 'success');
+      closeGroupModal();
+      loadChats();
+    } else {
+      toast(res.error || 'Failed to create group', 'error');
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Error creating group', 'error');
+  }
+}

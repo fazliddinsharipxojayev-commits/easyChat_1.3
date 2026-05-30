@@ -299,19 +299,47 @@ app.post('/api/chats', (req, res) => {
 app.get('/api/chats/:userId', (req, res) => {
   const userId = req.params.userId;
   db.all(
-    `SELECT c.id as chat_id, c.last_message, c.updated_at,
-            u.id as other_user_id, u.username, u.profilePic
+    `SELECT c.id as chat_id, c.last_message, c.updated_at, c.is_group, c.group_name,
+            u.id as other_user_id, u.username as direct_username, u.profilePic as direct_pic
      FROM chats c
-     JOIN users u ON (u.id = c.user1_id OR u.id = c.user2_id) AND u.id != ?
-     WHERE (c.user1_id = ? OR c.user2_id = ?) 
+     LEFT JOIN users u ON c.is_group = 0 AND (u.id = c.user1_id OR u.id = c.user2_id) AND u.id != ?
+     WHERE (c.user1_id = ? OR c.user2_id = ? OR EXISTS(SELECT 1 FROM group_members gm WHERE gm.chat_id = c.id AND gm.user_id = ?)) 
      AND (c.deleted_by IS NULL OR c.deleted_by NOT LIKE '%|' || ? || '|%')
      ORDER BY c.updated_at DESC`,
-    [userId, userId, userId, userId],
+    [userId, userId, userId, userId, userId],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json(rows);
+      res.json(rows.map(r => ({
+        chat_id: r.chat_id,
+        last_message: r.last_message,
+        updated_at: r.updated_at,
+        is_group: r.is_group,
+        group_name: r.group_name,
+        other_user_id: r.is_group ? 0 : r.other_user_id,
+        username: r.is_group ? r.group_name : r.direct_username,
+        profilePic: r.is_group ? null : r.direct_pic
+      })));
     }
   );
+});
+
+app.post('/api/create-group', (req, res) => {
+  const { groupName, members } = req.body;
+  if (!groupName || !members || members.length < 1) return res.status(400).json({ error: 'Invalid group data' });
+
+  // user1_id = creator, user2_id = 0, is_group = 1
+  const creatorId = members[members.length - 1]; // We appended creator at the end
+  db.run(`INSERT INTO chats (user1_id, user2_id, is_group, group_name) VALUES (?, 0, 1, ?)`, [creatorId, groupName], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    const chatId = this.lastID;
+    
+    // Insert into group_members
+    const stmt = db.prepare(`INSERT INTO group_members (chat_id, user_id) VALUES (?, ?)`);
+    members.forEach(m => stmt.run([chatId, m]));
+    stmt.finalize();
+
+    res.json({ success: true, chatId });
+  });
 });
 
 app.post('/api/chats/:id/delete', (req, res) => {
