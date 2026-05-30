@@ -1909,21 +1909,25 @@ async function openGroupModal() {
       
       const btn = document.createElement('button');
       btn.className = 'secondary-btn';
-      btn.style.padding = '4px 12px';
+      btn.style.padding = '6px 14px';
       btn.style.fontSize = '12px';
-      btn.textContent = 'Add';
+      btn.style.borderRadius = '20px';
+      btn.style.transition = 'all 0.2s';
+      btn.innerHTML = '<i class="fas fa-plus"></i> Add';
       
       btn.onclick = () => {
         if (selectedGroupFriends.has(f.id)) {
           selectedGroupFriends.delete(f.id);
-          btn.textContent = 'Add';
+          btn.innerHTML = '<i class="fas fa-plus"></i> Add';
           btn.style.background = '';
           btn.style.color = '';
+          btn.style.borderColor = 'var(--border)';
         } else {
           selectedGroupFriends.add(f.id);
-          btn.textContent = 'Added';
-          btn.style.background = 'var(--primary)';
+          btn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+          btn.style.background = '#ff4d4d'; // nice red for cancel
           btn.style.color = '#fff';
+          btn.style.borderColor = '#ff4d4d';
         }
       };
       

@@ -21,6 +21,7 @@ if (process.env.RESET_DB_ON_START === 'true' || process.env.NODE_ENV === 'produc
     db.run('DROP TABLE IF EXISTS posts');
     db.run('DROP TABLE IF EXISTS messages');
     db.run('DROP TABLE IF EXISTS chats');
+    db.run('DROP TABLE IF EXISTS group_members');
     db.run('DROP TABLE IF EXISTS users');
     // Re‑create tables (same schema as in database.js)
     db.run(`CREATE TABLE IF NOT EXISTS users (
@@ -38,7 +39,13 @@ if (process.env.RESET_DB_ON_START === 'true' || process.env.NODE_ENV === 'produc
       last_message TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       deleted_by TEXT DEFAULT '',
-      UNIQUE(user1_id, user2_id)
+      is_group INTEGER DEFAULT 0,
+      group_name TEXT DEFAULT ''
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS group_members (
+      chat_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      UNIQUE(chat_id, user_id)
     )`);
     db.run(`CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
