@@ -970,14 +970,31 @@ async function viewGroupProfile(chatId, groupName) {
     navigate('home');
     openChat(chatId, { userId: 0, username: groupName, profilePic: null, is_group: 1 });
   };
-  // Hide posts stats, show members instead
+  // Display members stat instead of friends stat
   document.getElementById('other-post-count').parentElement.style.display = 'none';
-  document.getElementById('other-friends-stat').style.display = 'none';
+  const friendsStat = document.getElementById('other-friends-stat');
+  friendsStat.style.display = 'block';
+  friendsStat.querySelector('span').textContent = 'Members';
+  
+  // Clear the add people button first
+  const addBtn = document.getElementById('other-profile-add-people-btn');
+  addBtn.style.display = 'none';
+
   document.getElementById('other-posts-grid').innerHTML = '';
   hide('other-posts-empty');
   // Load group members list below the message button
   try {
     const members = await get(`/api/groups/${chatId}/members`);
+    const me = members.find(m => String(m.id) === String(currentUser.userId));
+    const isMeAdmin = me && me.is_admin === 1;
+
+    document.getElementById('other-friends-count').textContent = members.length;
+
+    if (isMeAdmin) {
+      addBtn.style.display = 'block';
+      addBtn.onclick = () => openAddMembersModal(chatId, members.map(m => m.id));
+    }
+
     const grid = document.getElementById('other-posts-grid');
     grid.innerHTML = '';
     grid.style.display = 'grid';
@@ -989,19 +1006,143 @@ async function viewGroupProfile(chatId, groupName) {
       return;
     }
     members.forEach(m => {
+      const isTargetAdmin = m.is_admin === 1;
       const div = document.createElement('div');
       div.className = 'user-item';
       div.style.cursor = 'pointer';
+      
+      let rightBtn = '';
+      if (isMeAdmin && !isTargetAdmin) {
+        rightBtn = `<button class="secondary-btn" style="padding:6px 14px;font-size:12px;border-radius:20px" onclick="event.stopPropagation(); makeGroupAdmin(${chatId}, ${m.id})">Make Admin</button>`;
+      } else if (isTargetAdmin) {
+        rightBtn = `<span style="font-size:12px;color:var(--accent);font-weight:600">Admin</span>`;
+      }
+
       div.innerHTML = `
         <div class="user-avatar" onclick="viewOtherProfile(${m.id},'${esc(m.username)}','${m.profilePic||''}')">
           <img src="${avatarSrc(m.profilePic, m.username)}" alt="${esc(m.username)}">
         </div>
-        <div class="user-info" onclick="viewOtherProfile(${m.id},'${esc(m.username)}','${m.profilePic||''}')">
+        <div class="user-info" onclick="viewOtherProfile(${m.id},'${esc(m.username)}','${m.profilePic||''}')" style="flex:1">
           <strong>${esc(m.username)}</strong>
           <small>Member</small>
-        </div>`;
+        </div>
+        ${rightBtn}`;
       grid.appendChild(div);
     });
+  } catch(e) { console.error(e); }
+}
+
+async function makeGroupAdmin(chatId, targetUserId) {
+  try {
+    const res = await post(`/api/groups/${chatId}/make-admin`, { targetUserId, requestorId: currentUser.userId });
+    if (res.success) {
+      toast('User is now an admin', 'success');
+      viewGroupProfile(chatId, document.getElementById('top-title').textContent);
+    } else {
+      toast(res.error || 'Failed to make admin', 'error');
+    }
+  } catch(e) { console.error(e); }
+}
+
+let activeAddMembersChatId = null;
+async function openAddMembersModal(chatId, existingMemberIds) {
+  activeAddMembersChatId = chatId;
+  const container = document.getElementById('add-members-list');
+  container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:12px;">Loading friends...</p>';
+  show('add-members-modal');
+  
+  try {
+    const friends = await get(`/api/friends/${currentUser.userId}`);
+    const nonMembers = friends.filter(f => !existingMemberIds.includes(f.id));
+    
+    container.innerHTML = '';
+    if (!nonMembers.length) {
+      container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:12px;">No more friends to add.</p>';
+      return;
+    }
+    
+    selectedGroupFriends.clear(); // Reusing the set from createGroup
+    
+    nonMembers.forEach(f => {
+      const wrap = document.createElement('div');
+      wrap.className = 'group-friend-item group-friend-wrap';
+      wrap.dataset.friendId = f.id;
+      wrap.style.display = 'flex';
+      wrap.style.alignItems = 'center';
+      wrap.style.justifyContent = 'space-between';
+      wrap.style.padding = '8px';
+      wrap.style.borderBottom = '1px solid var(--border)';
+      
+      wrap.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;">
+          <img src="${avatarSrc(f.profilePic, f.username)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
+          <span class="group-friend-name" style="font-weight:600;font-size:14px;">${esc(f.username)}</span>
+        </div>
+        <button class="secondary-btn" style="padding:6px 14px;font-size:12px;border-radius:20px;transition:all 0.2s;">
+          <i class="fas fa-plus"></i> Add
+        </button>
+      `;
+      
+      const btn = wrap.querySelector('button');
+      btn.onclick = () => {
+        if (selectedGroupFriends.has(f.id)) {
+          selectedGroupFriends.delete(f.id);
+          btn.innerHTML = '<i class="fas fa-plus"></i> Add';
+          btn.style.background = '';
+          btn.style.color = '';
+          btn.style.borderColor = 'var(--border)';
+        } else {
+          selectedGroupFriends.add(f.id);
+          btn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+          btn.style.background = '#ff4d4d';
+          btn.style.color = '#fff';
+          btn.style.borderColor = '#ff4d4d';
+        }
+      };
+      
+      container.appendChild(wrap);
+    });
+  } catch(e) { console.error(e); }
+}
+
+function closeAddMembersModal(e) {
+  if (e && e.target.id !== 'add-members-modal' && e.target.className !== 'modal-close' && !e.target.closest('.modal-close')) {
+    if (e.target.closest('.modal-content')) return;
+  }
+  hide('add-members-modal');
+  activeAddMembersChatId = null;
+}
+
+async function submitAddMembers() {
+  if (!activeAddMembersChatId) return;
+  if (selectedGroupFriends.size === 0) return toast('Select at least one friend', 'error');
+  
+  const container = document.getElementById('add-members-list');
+  const friendNames = [];
+  container.querySelectorAll('.group-friend-wrap').forEach(wrap => {
+    const id = parseInt(wrap.dataset.friendId);
+    if (selectedGroupFriends.has(id)) {
+      const nameEl = wrap.querySelector('.group-friend-name');
+      if (nameEl) friendNames.push(nameEl.textContent.trim());
+    }
+  });
+  
+  const newMembers = Array.from(selectedGroupFriends);
+  
+  try {
+    const res = await post(`/api/groups/${activeAddMembersChatId}/add-members`, {
+      newMembers,
+      requestorId: currentUser.userId,
+      requestorName: currentUser.username,
+      friendNames
+    });
+    if (res.success) {
+      toast('Members added!', 'success');
+      closeAddMembersModal();
+      viewGroupProfile(activeAddMembersChatId, document.getElementById('top-title').textContent);
+    } else {
+      toast(res.error || 'Failed to add members', 'error');
+    }
   } catch(e) { console.error(e); }
 }
 
@@ -1025,9 +1166,13 @@ async function viewOtherProfile(userId, username, profilePic) {
   // Show friend button, restore posts display
   document.getElementById('other-profile-friend-btn').style.display = 'block';
   document.getElementById('other-profile-msg-btn').style.display = 'block';
+  document.getElementById('other-profile-add-people-btn').style.display = 'none';
   document.getElementById('other-profile-msg-btn').onclick = startChatFromProfile;
   document.getElementById('other-post-count').parentElement.style.display = '';
-  document.getElementById('other-friends-stat').style.display = '';
+  const fStat = document.getElementById('other-friends-stat');
+  fStat.style.display = '';
+  fStat.querySelector('span').setAttribute('data-t', 'friends');
+  fStat.querySelector('span').textContent = t('friends');
   const grid2 = document.getElementById('other-posts-grid');
   grid2.style.cssText = '';
 
@@ -1122,9 +1267,9 @@ function buildGridItem(p) {
   div.innerHTML = `
     <img src="${p.image_url}" alt="post" loading="lazy" onclick="openImageFull('${p.image_url}')">
     <div class="post-stats-below">
-      <span><i class="fas fa-heart"></i> ${p.like_count || 0}</span>
-      <span><i class="fas fa-thumbs-down"></i> ${p.dislike_count || 0}</span>
-      <span><i class="fas fa-comment"></i> ${p.comment_count || 0}</span>
+      <span style="cursor:pointer; color: ${p.liked_by_me ? 'var(--danger)' : ''}" onclick="toggleLike(${p.id})"><i class="fas fa-heart"></i> ${p.like_count || 0}</span>
+      <span style="cursor:pointer; color: ${p.disliked_by_me ? 'var(--accent)' : ''}" onclick="toggleDislike(${p.id})"><i class="fas fa-thumbs-down"></i> ${p.dislike_count || 0}</span>
+      <span style="cursor:pointer" onclick="openComments(${p.id})"><i class="fas fa-comment"></i> ${p.comment_count || 0}</span>
       ${p.user_id === currentUser.userId ? `<button class="delete-post-btn" onclick="event.stopPropagation(); deletePost(${p.id})"><i class="fas fa-trash"></i></button>` : ''}
     </div>`;
   return div;

@@ -35,8 +35,10 @@ db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS group_members (
     chat_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
+    is_admin INTEGER DEFAULT 0,
     UNIQUE(chat_id, user_id)
   )`);
+  db.run(`ALTER TABLE group_members ADD COLUMN is_admin INTEGER DEFAULT 0`, (err) => {});
 
   db.run(`CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

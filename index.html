@@ -262,6 +262,9 @@
               <button class="profile-message-btn" id="other-profile-friend-btn" onclick="toggleFriendFromProfile()" style="flex:1;margin:0;background:var(--bg3);color:var(--text);border:1px solid var(--border)">
                 <i class="fas fa-user-plus"></i> <span data-t="be_friends">Be Friends</span>
               </button>
+              <button class="profile-message-btn" id="other-profile-add-people-btn" onclick="openAddPeopleModal()" style="display:none;flex:1;margin:0;background:var(--bg3);color:var(--text);border:1px solid var(--border)">
+                <i class="fas fa-user-plus"></i> <span>Add People</span>
+              </button>
             </div>
             <div class="profile-posts-grid" id="other-posts-grid"></div>
             <div class="empty-state" id="other-posts-empty" style="height:200px">
@@ -603,6 +606,26 @@
     </div>
   </div>
 </div>
+
+<!-- ═══════════════════════════════════════════
+     ADD MEMBERS MODAL
+═══════════════════════════════════════════ -->
+<div id="add-members-modal" class="modal hidden" onclick="closeAddMembersModal(event)">
+  <div class="modal-content glass" style="max-width:350px;">
+    <div class="modal-header">
+      <h3>Add Members</h3>
+      <button class="modal-close" onclick="closeAddMembersModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="add-members-list" class="group-friends-list" style="max-height:300px;overflow:auto;margin:12px 0;">
+      <!-- non-member friends rendered here -->
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="primary-btn" onclick="submitAddMembers()">Add Selected</button>
+      <button class="secondary-btn" onclick="closeAddMembersModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
       <!-- BOTTOM NAV -->
       <nav class="bottom-nav glass" id="bottom-nav">
 

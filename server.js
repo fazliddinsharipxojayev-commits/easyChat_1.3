@@ -354,6 +354,9 @@ app.post('/api/create-group', (req, res) => {
     members.forEach(m => stmt.run([chatId, m]));
     stmt.finalize();
 
+    // Set creator as admin
+    db.run(`UPDATE group_members SET is_admin = 1 WHERE chat_id = ? AND user_id = ?`, [chatId, creator]);
+
     // Insert Instagram-style system message: "creatorName added friend1, friend2"
     const addedNames = (friendNames && friendNames.length) ? friendNames.join(', ') : 'members';
     const sysMsg = `${creatorName || 'Someone'} added ${addedNames}`;
@@ -370,11 +373,44 @@ app.post('/api/create-group', (req, res) => {
 });
 
 app.get('/api/groups/:chatId/members', (req, res) => {
-  db.all(`SELECT u.id, u.username, u.profilePic FROM group_members gm JOIN users u ON gm.user_id = u.id WHERE gm.chat_id = ?`, [req.params.chatId], (err, rows) => {
+  db.all(`SELECT u.id, u.username, u.profilePic, gm.is_admin FROM group_members gm JOIN users u ON gm.user_id = u.id WHERE gm.chat_id = ?`, [req.params.chatId], (err, rows) => {
     if (err) return res.status(500).json({error: err.message});
     res.json(rows);
   });
 });
+
+app.post('/api/groups/:chatId/make-admin', (req, res) => {
+  const { targetUserId, requestorId } = req.body;
+  // Verify requestor is admin
+  db.get(`SELECT is_admin FROM group_members WHERE chat_id = ? AND user_id = ?`, [req.params.chatId, requestorId], (err, row) => {
+    if (!row || row.is_admin !== 1) return res.status(403).json({error: 'Only admins can make other users admin'});
+    db.run(`UPDATE group_members SET is_admin = 1 WHERE chat_id = ? AND user_id = ?`, [req.params.chatId, targetUserId], function(err) {
+      if (err) return res.status(500).json({error: err.message});
+      res.json({success: true});
+    });
+  });
+});
+
+app.post('/api/groups/:chatId/add-members', (req, res) => {
+  const { newMembers, requestorId, requestorName, friendNames } = req.body;
+  db.get(`SELECT is_admin FROM group_members WHERE chat_id = ? AND user_id = ?`, [req.params.chatId, requestorId], (err, row) => {
+    if (!row || row.is_admin !== 1) return res.status(403).json({error: 'Only admins can add members'});
+    const stmt = db.prepare(`INSERT OR IGNORE INTO group_members (chat_id, user_id) VALUES (?, ?)`);
+    newMembers.forEach(m => stmt.run([req.params.chatId, m]));
+    stmt.finalize();
+
+    const addedNames = (friendNames && friendNames.length) ? friendNames.join(', ') : 'members';
+    const sysMsg = `${requestorName || 'Someone'} added ${addedNames}`;
+    db.run(`INSERT INTO messages (chat_id, sender_id, content, type) VALUES (?, ?, ?, 'system_join')`,
+      [req.params.chatId, requestorId, sysMsg],
+      function(msgErr) {
+        db.run(`UPDATE chats SET last_message = ? WHERE id = ?`, [sysMsg, req.params.chatId]);
+        res.json({ success: true, sysMsg });
+      }
+    );
+  });
+});
+
 
 app.post('/api/groups/:chatId/join', (req, res) => {
   const { userId } = req.body;
@@ -418,7 +454,7 @@ app.get('/api/messages/:chatId', (req, res) => {
     `SELECT m.*, u.username as sender_name, u.profilePic as sender_pic FROM messages m
      JOIN users u ON u.id = m.sender_id
      WHERE m.chat_id = ? 
-     AND (m.deleted_by IS NULL OR m.deleted_by NOT LIKE '%|' || ? || '|%')
+     AND (m.deleted_by IS NULL OR (m.deleted_by != 'ALL' AND m.deleted_by NOT LIKE '%|' || ? || '|%'))
      ORDER BY m.created_at ASC`,
     [req.params.chatId, userId || 0],
     (err, rows) => {
@@ -467,7 +503,7 @@ app.get('/api/messages/saved/:chatId', (req, res) => {
      JOIN users u ON u.id = m.sender_id
      WHERE m.chat_id = ? 
      AND m.is_saved = 1
-     AND (m.deleted_by IS NULL OR m.deleted_by NOT LIKE '%|' || ? || '|%')
+     AND (m.deleted_by IS NULL OR (m.deleted_by != 'ALL' AND m.deleted_by NOT LIKE '%|' || ? || '|%'))
      ORDER BY m.created_at ASC`,
     [req.params.chatId, userId || 0],
     (err, rows) => {
