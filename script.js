@@ -228,9 +228,15 @@ function initSocket() {
     updateOnlineStatus();
   });
 
+  // Clean real-time delete signal (no "MSG_DELETED" text shown)
+  socket.on('deleteMsgSignal', ({ msgId }) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) el.remove();
+  });
+
   socket.on('receiveMessage', (msg) => {
     if (msg.type === 'system') {
-      if (msg.content.startsWith('MSG_DELETED:')) {
+      if (msg.content && msg.content.startsWith('MSG_DELETED:')) {
         const msgId = msg.content.split(':')[1];
         const el = document.getElementById(`msg-${msgId}`);
         if (el) el.remove();
@@ -342,10 +348,11 @@ async function loadChats() {
     }
     loadSuggestedUsers();
     chats.forEach(c => {
-      const isOnline = onlineUserIds.includes(String(c.other_user_id));
+      const isGroup = !!c.is_group;
+      const isOnline = !isGroup && onlineUserIds.includes(String(c.other_user_id));
       const li = document.createElement('li');
       li.className = 'chat-item';
-      li.onclick = () => openChat(c.chat_id, { userId: c.other_user_id, username: c.username, profilePic: c.profilePic });
+      li.onclick = () => openChat(c.chat_id, { userId: c.other_user_id, username: c.username, profilePic: c.profilePic, is_group: isGroup });
       
       // Long press / right click to delete chat
       li.oncontextmenu = (e) => {
@@ -356,9 +363,10 @@ async function loadChats() {
       };
 
       li.innerHTML = `
-        <div class="chat-avatar" onclick="event.stopPropagation(); viewOtherProfile(${c.other_user_id},'${esc(c.username)}','${c.profilePic||''}')">
+        <div class="chat-avatar" onclick="event.stopPropagation(); ${c.is_group ? `viewGroupProfile(${c.chat_id},'${esc(c.username)}')` : `viewOtherProfile(${c.other_user_id},'${esc(c.username)}','${c.profilePic||''}')`}">
           <img src="${avatarSrc(c.profilePic, c.username)}" alt="${c.username}">
           ${isOnline ? '<div class="online-dot"></div>' : ''}
+          ${c.is_group ? '<div class="group-badge"><i class="fas fa-users"></i></div>' : ''}
         </div>
         <div class="chat-info">
           <div class="chat-name">${esc(c.username)}</div>
@@ -418,7 +426,8 @@ function updateOnlineStatus() {
 
 /* ─── OPEN / CLOSE CHAT ─────────────────────────────────────── */
 async function openChat(chatId, otherUser) {
-  currentChat = { chatId, otherUser };
+  const isGroup = !!(otherUser.is_group);
+  currentChat = { chatId, otherUser, isGroup };
   originalMessages.clear();
   const room = document.getElementById('chat-room');
   room.classList.remove('hidden');
@@ -427,8 +436,12 @@ async function openChat(chatId, otherUser) {
   document.getElementById('chat-header-name').textContent = otherUser.username;
   const pic = document.getElementById('chat-header-pic');
   pic.src = avatarSrc(otherUser.profilePic, otherUser.username);
-  pic.onclick = () => { closeChat(); viewOtherProfile(otherUser.userId, esc(otherUser.username), otherUser.profilePic); };
   pic.style.cursor = 'pointer';
+  if (isGroup) {
+    pic.onclick = () => { closeChat(); viewGroupProfile(chatId, otherUser.username); };
+  } else {
+    pic.onclick = () => { closeChat(); viewOtherProfile(otherUser.userId, esc(otherUser.username), otherUser.profilePic); };
+  }
 
   const statusEl = document.getElementById('chat-status');
   const isOnline = onlineUserIds.includes(String(otherUser.userId));
@@ -465,6 +478,17 @@ function closeChat() {
 /* ─── MESSAGES ──────────────────────────────────────────────── */
 function appendMessage(msg) {
   if (document.getElementById(`msg-${msg.id}`)) return;
+
+  // System join messages (group creation notice) – rendered as a centred pill
+  if (msg.type === 'system_join') {
+    const wrap = document.createElement('div');
+    wrap.className = 'system-msg-wrap';
+    wrap.id = `msg-${msg.id}`;
+    wrap.innerHTML = `<span class="system-msg-pill">${esc(msg.content)}</span>`;
+    document.getElementById('chat-messages').appendChild(wrap);
+    return;
+  }
+
   const wrap = document.createElement('div');
   const isMe = String(msg.sender_id) === String(currentUser.userId);
   wrap.className = `msg-wrap ${isMe ? 'me' : 'them'}`;
@@ -476,8 +500,29 @@ function appendMessage(msg) {
     showDeleteMessageMenu(msg.id, isMe);
   };
 
-  const clickAttr = isMe ? `onclick="navigate('profile')"` : `onclick="viewOtherProfile(${currentChat.otherUser.userId},'${esc(currentChat.otherUser.username)}','${currentChat.otherUser.profilePic}')"`;
-  const avatar = `<img class="msg-avatar" src="${isMe ? avatarSrc(currentUser.profilePic, currentUser.username) : avatarSrc(currentChat.otherUser.profilePic, currentChat.otherUser.username)}" alt="avatar" style="cursor:pointer" ${clickAttr}>`;
+  // For group chats, use the actual sender info from the message; for DMs use otherUser
+  const isGroup = currentChat && currentChat.isGroup;
+  let senderPic, senderUsername, senderUserId;
+  if (isMe) {
+    senderPic = currentUser.profilePic;
+    senderUsername = currentUser.username;
+    senderUserId = currentUser.userId;
+  } else if (isGroup) {
+    // msg.sender_pic and msg.sender_name come from the server JOIN
+    senderPic = msg.sender_pic || null;
+    senderUsername = msg.sender_name || 'Unknown';
+    senderUserId = msg.sender_id;
+  } else {
+    senderPic = currentChat.otherUser.profilePic;
+    senderUsername = currentChat.otherUser.username;
+    senderUserId = currentChat.otherUser.userId;
+  }
+  const clickAttr = isMe
+    ? `onclick="navigate('profile')"`
+    : `onclick="viewOtherProfile(${senderUserId},'${esc(senderUsername)}','${senderPic||''}')"`;
+  const avatar = `<img class="msg-avatar" src="${avatarSrc(senderPic, senderUsername)}" alt="avatar" style="cursor:pointer" ${clickAttr}>`;
+  // In group chats, show the sender's name above their bubble
+  const groupNameLabel = (!isMe && isGroup) ? `<div class="group-sender-name">${esc(senderUsername)}</div>` : '';
 
   let content = '';
   if (msg.type === 'image') {
@@ -507,6 +552,7 @@ function appendMessage(msg) {
   wrap.innerHTML = `
     ${avatar}
     <div class="msg-content-wrap">
+      ${groupNameLabel}
       <div class="msg-bubble-container">
         ${content}
       </div>
@@ -797,7 +843,8 @@ async function deleteMessage(msgId, forBoth) {
     const el = document.getElementById(`msg-${msgId}`);
     if (el) el.remove();
     toast('Message deleted', 'success');
-    if (forBoth) socket.emit('sendMessage', { chatId: currentChat.chatId, senderId: currentUser.userId, content: 'MSG_DELETED:' + msgId, type: 'system' });
+    // Notify other user to remove the message from their screen too
+    if (forBoth) socket.emit('deleteMsgSignal', { chatId: currentChat.chatId, msgId });
   } catch(e) { toast('Could not delete message', 'error'); }
 }
 
@@ -903,6 +950,60 @@ async function startChatWith(userId, username, profilePic) {
 
 /* ─── OTHER USER PROFILE ─────────────────────────────────────── */
 let viewingUserId = null;
+let viewingGroupId = null;
+
+async function viewGroupProfile(chatId, groupName) {
+  viewingGroupId = chatId;
+  viewingUserId = null;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-other-profile').classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('top-title').textContent = groupName;
+  document.getElementById('top-actions').innerHTML = '';
+  document.getElementById('other-profile-avatar').src = avatarSrc(null, groupName);
+  document.getElementById('other-profile-username').textContent = groupName;
+  // Hide friend button, keep message button
+  document.getElementById('other-profile-friend-btn').style.display = 'none';
+  document.getElementById('other-profile-msg-btn').style.display = 'block';
+  document.getElementById('other-profile-msg-btn').onclick = () => {
+    // Navigate back to the group chat
+    navigate('home');
+    openChat(chatId, { userId: 0, username: groupName, profilePic: null, is_group: 1 });
+  };
+  // Hide posts stats, show members instead
+  document.getElementById('other-post-count').parentElement.style.display = 'none';
+  document.getElementById('other-friends-stat').style.display = 'none';
+  document.getElementById('other-posts-grid').innerHTML = '';
+  hide('other-posts-empty');
+  // Load group members list below the message button
+  try {
+    const members = await get(`/api/groups/${chatId}/members`);
+    const grid = document.getElementById('other-posts-grid');
+    grid.innerHTML = '';
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = '1fr';
+    grid.style.gap = '8px';
+    grid.style.padding = '12px';
+    if (!members.length) {
+      grid.innerHTML = '<div style="text-align:center;color:var(--text2);padding:24px">No members</div>';
+      return;
+    }
+    members.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'user-item';
+      div.style.cursor = 'pointer';
+      div.innerHTML = `
+        <div class="user-avatar" onclick="viewOtherProfile(${m.id},'${esc(m.username)}','${m.profilePic||''}')">
+          <img src="${avatarSrc(m.profilePic, m.username)}" alt="${esc(m.username)}">
+        </div>
+        <div class="user-info" onclick="viewOtherProfile(${m.id},'${esc(m.username)}','${m.profilePic||''}')">
+          <strong>${esc(m.username)}</strong>
+          <small>Member</small>
+        </div>`;
+      grid.appendChild(div);
+    });
+  } catch(e) { console.error(e); }
+}
 
 async function viewOtherProfile(userId, username, profilePic) {
   closeChat(); // Close chat if navigating from one
@@ -921,6 +1022,14 @@ async function viewOtherProfile(userId, username, profilePic) {
 
   document.getElementById('other-profile-avatar').src = avatarSrc(profilePic, username);
   document.getElementById('other-profile-username').textContent = username;
+  // Show friend button, restore posts display
+  document.getElementById('other-profile-friend-btn').style.display = 'block';
+  document.getElementById('other-profile-msg-btn').style.display = 'block';
+  document.getElementById('other-profile-msg-btn').onclick = startChatFromProfile;
+  document.getElementById('other-post-count').parentElement.style.display = '';
+  document.getElementById('other-friends-stat').style.display = '';
+  const grid2 = document.getElementById('other-posts-grid');
+  grid2.style.cssText = '';
 
   // Load friends count and status
   try {
@@ -943,7 +1052,6 @@ async function viewOtherProfile(userId, username, profilePic) {
 
   // Load their posts
   const grid = document.getElementById('other-posts-grid');
-  const empty = document.getElementById('other-posts-empty');
   grid.innerHTML = '';
   hide('other-posts-empty');
 
@@ -1890,7 +1998,8 @@ async function openGroupModal() {
     
     friends.forEach(f => {
       const wrap = document.createElement('div');
-      wrap.className = 'group-friend-item';
+      wrap.className = 'group-friend-item group-friend-wrap';
+      wrap.dataset.friendId = f.id;
       wrap.style.display = 'flex';
       wrap.style.alignItems = 'center';
       wrap.style.justifyContent = 'space-between';
@@ -1904,7 +2013,7 @@ async function openGroupModal() {
       
       left.innerHTML = `
         <img src="${avatarSrc(f.profilePic, f.username)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
-        <span style="font-weight:600;font-size:14px;">${esc(f.username)}</span>
+        <span class="group-friend-name" style="font-weight:600;font-size:14px;">${esc(f.username)}</span>
       `;
       
       const btn = document.createElement('button');
@@ -1953,19 +2062,33 @@ async function createGroup() {
   const name = document.getElementById('group-name-input').value.trim();
   if (!name) return toast('Please enter a group name', 'error');
   if (selectedGroupFriends.size === 0) return toast('Select at least one friend', 'error');
-  
+
+  // Collect friend names from the UI for the system message
+  const container = document.getElementById('group-friends-list');
+  const friendNames = [];
+  container.querySelectorAll('.group-friend-wrap').forEach(wrap => {
+    const id = parseInt(wrap.dataset.friendId);
+    if (selectedGroupFriends.has(id)) {
+      const nameEl = wrap.querySelector('.group-friend-name');
+      if (nameEl) friendNames.push(nameEl.textContent.trim());
+    }
+  });
+
   const memberIds = Array.from(selectedGroupFriends);
-  memberIds.push(currentUser.userId); // Add creator to group
-  
+  memberIds.push(currentUser.userId); // Add creator
+
   try {
     const res = await post('/api/create-group', {
       groupName: name,
-      members: memberIds
+      members: memberIds,
+      creatorId: currentUser.userId,
+      creatorName: currentUser.username,
+      friendNames
     });
     if (res.success) {
       toast('Group created!', 'success');
       closeGroupModal();
-      loadChats();
+      await loadChats();
     } else {
       toast(res.error || 'Failed to create group', 'error');
     }
@@ -1974,3 +2097,4 @@ async function createGroup() {
     toast('Error creating group', 'error');
   }
 }
+

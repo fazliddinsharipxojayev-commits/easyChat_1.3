@@ -590,7 +590,7 @@ body.light-mode .fwd-poster-info strong {
 
 /* AI Helper Modal Content */
 .ai-helper-modal-content {
-  background: rgba(22, 22, 30, 0.9) !important;
+  background: var(--bg2) !important;
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
   border: 1px solid rgba(108, 99, 255, 0.2) !important;
@@ -653,7 +653,7 @@ body.light-mode .fwd-poster-info strong {
   margin-bottom: 15px;
 }
 .quick-action-btn {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg3);
   border: 1px solid var(--border);
   padding: 12px;
   border-radius: 12px;
@@ -691,7 +691,7 @@ body.light-mode .fwd-poster-info strong {
   outline: none;
 }
 .ai-assistant-output {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
@@ -805,4 +805,28 @@ body.light-mode .fwd-poster-info strong {
   max-width: 450px !important;
   border-radius: 24px !important;
   padding-bottom: 20px;
+}
+
+/* System Message Pill */
+.system-msg-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0;
+}
+.system-msg-pill {
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+/* Group Sender Name */
+.group-sender-name {
+  font-size: 11px;
+  color: var(--accent);
+  margin-bottom: 2px;
+  font-weight: 600;
 }

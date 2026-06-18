@@ -223,13 +223,23 @@ app.get('/api/users/search', (req, res) => {
   const { q, currentUserId } = req.query;
   if (!q) return res.json([]);
   db.all(
-    `SELECT id, username, profilePic FROM users WHERE username LIKE ? AND id != ? LIMIT 20`,
-    [`%${q}%`, currentUserId || 0],
+    `SELECT id, username, profilePic, 0 as is_group FROM users WHERE username LIKE ? AND id != ?
+     UNION
+     SELECT id, group_name as username, null as profilePic, 1 as is_group FROM chats WHERE is_group = 1 AND group_name LIKE ?
+     LIMIT 20`,
+    [`%${q}%`, currentUserId || 0, `%${q}%`],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(rows);
     }
   );
+});
+
+app.get('/api/groups/:id', (req, res) => {
+  db.get(`SELECT id, group_name FROM chats WHERE is_group = 1 AND id = ?`, [req.params.id], (err, row) => {
+    if (err || !row) return res.status(404).json({ error: 'Group not found' });
+    res.json({ id: row.id, username: row.group_name, profilePic: null, is_group: 1 });
+  });
 });
 
 app.get('/api/users/:id', (req, res) => {
@@ -331,21 +341,46 @@ app.get('/api/chats/:userId', (req, res) => {
 });
 
 app.post('/api/create-group', (req, res) => {
-  const { groupName, members } = req.body;
+  const { groupName, members, creatorId, creatorName, friendNames } = req.body;
   if (!groupName || !members || members.length < 1) return res.status(400).json({ error: 'Invalid group data' });
 
-  // user1_id = creator, user2_id = 0, is_group = 1
-  const creatorId = members[members.length - 1]; // We appended creator at the end
-  db.run(`INSERT INTO chats (user1_id, user2_id, is_group, group_name) VALUES (?, 0, 1, ?)`, [creatorId, groupName], function(err) {
+  const creator = creatorId || members[members.length - 1];
+  db.run(`INSERT INTO chats (user1_id, user2_id, is_group, group_name) VALUES (?, 0, 1, ?)`, [creator, groupName], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     const chatId = this.lastID;
-    
-    // Insert into group_members
-    const stmt = db.prepare(`INSERT INTO group_members (chat_id, user_id) VALUES (?, ?)`);
+
+    // Insert all members
+    const stmt = db.prepare(`INSERT OR IGNORE INTO group_members (chat_id, user_id) VALUES (?, ?)`);
     members.forEach(m => stmt.run([chatId, m]));
     stmt.finalize();
 
-    res.json({ success: true, chatId });
+    // Insert Instagram-style system message: "creatorName added friend1, friend2"
+    const addedNames = (friendNames && friendNames.length) ? friendNames.join(', ') : 'members';
+    const sysMsg = `${creatorName || 'Someone'} added ${addedNames}`;
+    db.run(
+      `INSERT INTO messages (chat_id, sender_id, content, type) VALUES (?, ?, ?, 'system_join')`,
+      [chatId, creator, sysMsg],
+      function(msgErr) {
+        // Update last_message preview
+        db.run(`UPDATE chats SET last_message = ? WHERE id = ?`, [sysMsg, chatId]);
+        res.json({ success: true, chatId });
+      }
+    );
+  });
+});
+
+app.get('/api/groups/:chatId/members', (req, res) => {
+  db.all(`SELECT u.id, u.username, u.profilePic FROM group_members gm JOIN users u ON gm.user_id = u.id WHERE gm.chat_id = ?`, [req.params.chatId], (err, rows) => {
+    if (err) return res.status(500).json({error: err.message});
+    res.json(rows);
+  });
+});
+
+app.post('/api/groups/:chatId/join', (req, res) => {
+  const { userId } = req.body;
+  db.run(`INSERT OR IGNORE INTO group_members (chat_id, user_id) VALUES (?, ?)`, [req.params.chatId, userId], function(err) {
+    if (err) return res.status(500).json({error: err.message});
+    res.json({success: true});
   });
 });
 
@@ -380,7 +415,7 @@ app.post('/api/chats/:id/delete', (req, res) => {
 app.get('/api/messages/:chatId', (req, res) => {
   const { userId } = req.query;
   db.all(
-    `SELECT m.*, u.username as sender_name FROM messages m
+    `SELECT m.*, u.username as sender_name, u.profilePic as sender_pic FROM messages m
      JOIN users u ON u.id = m.sender_id
      WHERE m.chat_id = ? 
      AND (m.deleted_by IS NULL OR m.deleted_by NOT LIKE '%|' || ? || '|%')
@@ -775,17 +810,25 @@ io.on('connection', (socket) => {
         db.run(`UPDATE chats SET last_message = ?, updated_at = CURRENT_TIMESTAMP, deleted_by = '' WHERE id = ?`,
           [type === 'image' ? '📷 Image' : content, chatId]);
           
-        db.get(`SELECT m.*, u.username as sender_name, c.user1_id, c.user2_id FROM messages m 
+        db.get(`SELECT m.*, u.username as sender_name, u.profilePic as sender_pic, c.user1_id, c.user2_id, c.is_group FROM messages m 
                 JOIN users u ON u.id = m.sender_id 
                 JOIN chats c ON c.id = m.chat_id
                 WHERE m.id = ?`, [msgId], (err, msg) => {
           if (msg) {
-            // Send to the chat room
             io.to(`chat_${chatId}`).emit('receiveMessage', msg);
-            
-            // Also send to the other user's private room for global notifications
-            const otherUserId = msg.user1_id == senderId ? msg.user2_id : msg.user1_id;
-            io.to(`user_${otherUserId}`).emit('receiveMessage', msg);
+            if (!msg.is_group) {
+              const otherUserId = msg.user1_id == senderId ? msg.user2_id : msg.user1_id;
+              io.to(`user_${otherUserId}`).emit('receiveMessage', msg);
+            } else {
+              // For group chats, emit to all members' private rooms except sender
+              db.all(`SELECT user_id FROM group_members WHERE chat_id = ? AND user_id != ?`, [chatId, senderId], (err, members) => {
+                if (members) {
+                  members.forEach(member => {
+                    io.to(`user_${member.user_id}`).emit('receiveMessage', msg);
+                  });
+                }
+              });
+            }
           }
         });
       }
@@ -794,11 +837,15 @@ io.on('connection', (socket) => {
 
   socket.on('broadcastSaveState', (data) => {
     const { chatId, msgId, saved } = data;
-    // Broadcast the system state change to the other user in the chat room
     socket.to(`chat_${chatId}`).emit('receiveMessage', {
       type: 'system',
       content: `MSG_SAVE_STATE:${msgId}:${saved ? 1 : 0}`
     });
+  });
+
+  // Real-time delete – just forward msgId so client removes the element cleanly
+  socket.on('deleteMsgSignal', ({ chatId, msgId }) => {
+    socket.to(`chat_${chatId}`).emit('deleteMsgSignal', { msgId });
   });
 
   socket.on('disconnect', () => {
