@@ -349,13 +349,19 @@ app.post('/api/create-group', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     const chatId = this.lastID;
 
-    // Insert all members
+    // Insert all members safely with a callback to avoid crash on SQLite constraints
     const stmt = db.prepare(`INSERT OR IGNORE INTO group_members (chat_id, user_id) VALUES (?, ?)`);
-    members.forEach(m => stmt.run([chatId, m]));
+    members.forEach(m => {
+      stmt.run([chatId, m], function(err) {
+        if (err) console.error("Error inserting member:", err);
+      });
+    });
     stmt.finalize();
 
     // Set creator as admin
-    db.run(`UPDATE group_members SET is_admin = 1 WHERE chat_id = ? AND user_id = ?`, [chatId, creator]);
+    db.run(`UPDATE group_members SET is_admin = 1 WHERE chat_id = ? AND user_id = ?`, [chatId, creator], function(err) {
+      if (err) console.error("Error setting admin:", err);
+    });
 
     // Insert Instagram-style system message: "creatorName added friend1, friend2"
     const addedNames = (friendNames && friendNames.length) ? friendNames.join(', ') : 'members';
@@ -364,9 +370,12 @@ app.post('/api/create-group', (req, res) => {
       `INSERT INTO messages (chat_id, sender_id, content, type) VALUES (?, ?, ?, 'system_join')`,
       [chatId, creator, sysMsg],
       function(msgErr) {
+        if (msgErr) console.error("Error inserting system message:", msgErr);
         // Update last_message preview
-        db.run(`UPDATE chats SET last_message = ? WHERE id = ?`, [sysMsg, chatId]);
-        res.json({ success: true, chatId });
+        db.run(`UPDATE chats SET last_message = ? WHERE id = ?`, [sysMsg, chatId], function(updateErr) {
+          if (updateErr) console.error("Error updating chat preview:", updateErr);
+          res.json({ success: true, chatId });
+        });
       }
     );
   });
@@ -396,7 +405,11 @@ app.post('/api/groups/:chatId/add-members', (req, res) => {
   db.get(`SELECT is_admin FROM group_members WHERE chat_id = ? AND user_id = ?`, [req.params.chatId, requestorId], (err, row) => {
     if (!row || row.is_admin !== 1) return res.status(403).json({error: 'Only admins can add members'});
     const stmt = db.prepare(`INSERT OR IGNORE INTO group_members (chat_id, user_id) VALUES (?, ?)`);
-    newMembers.forEach(m => stmt.run([req.params.chatId, m]));
+    newMembers.forEach(m => {
+      stmt.run([req.params.chatId, m], function(err) {
+        if (err) console.error("Error inserting member:", err);
+      });
+    });
     stmt.finalize();
 
     const addedNames = (friendNames && friendNames.length) ? friendNames.join(', ') : 'members';
@@ -404,8 +417,11 @@ app.post('/api/groups/:chatId/add-members', (req, res) => {
     db.run(`INSERT INTO messages (chat_id, sender_id, content, type) VALUES (?, ?, ?, 'system_join')`,
       [req.params.chatId, requestorId, sysMsg],
       function(msgErr) {
-        db.run(`UPDATE chats SET last_message = ? WHERE id = ?`, [sysMsg, req.params.chatId]);
-        res.json({ success: true, sysMsg });
+        if (msgErr) console.error("Error inserting system message:", msgErr);
+        db.run(`UPDATE chats SET last_message = ? WHERE id = ?`, [sysMsg, req.params.chatId], function(updateErr) {
+          if (updateErr) console.error("Error updating chat preview:", updateErr);
+          res.json({ success: true, sysMsg });
+        });
       }
     );
   });
