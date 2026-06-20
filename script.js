@@ -1264,11 +1264,12 @@ async function loadMyProfile() {
 function buildGridItem(p) {
   const div = document.createElement('div');
   div.className = 'profile-grid-item';
+  div.id = `profile-post-wrap-${p.id}`;
   div.innerHTML = `
     <img src="${p.image_url}" alt="post" loading="lazy" onclick="openImageFull('${p.image_url}')">
     <div class="post-stats-below">
-      <span style="cursor:pointer; color: ${p.liked_by_me ? 'var(--danger)' : ''}" onclick="toggleLike(${p.id})"><i class="fas fa-heart"></i> ${p.like_count || 0}</span>
-      <span style="cursor:pointer; color: ${p.disliked_by_me ? 'var(--accent)' : ''}" onclick="toggleDislike(${p.id})"><i class="fas fa-thumbs-down"></i> ${p.dislike_count || 0}</span>
+      <span id="profile-like-btn-${p.id}" style="cursor:pointer; color: ${p.liked_by_me ? 'var(--danger)' : ''}" onclick="reactPost(${p.id}, 'like')"><i class="fas fa-heart"></i> <span id="profile-likes-${p.id}">${p.like_count || 0}</span></span>
+      <span id="profile-dislike-btn-${p.id}" style="cursor:pointer; color: ${p.disliked_by_me ? 'var(--accent)' : ''}" onclick="reactPost(${p.id}, 'dislike')"><i class="fas fa-thumbs-down"></i> <span id="profile-dislikes-${p.id}">${p.dislike_count || 0}</span></span>
       <span style="cursor:pointer" onclick="openComments(${p.id})"><i class="fas fa-comment"></i> ${p.comment_count || 0}</span>
       ${p.user_id === currentUser.userId ? `<button class="delete-post-btn" onclick="event.stopPropagation(); deletePost(${p.id})"><i class="fas fa-trash"></i></button>` : ''}
     </div>`;
@@ -1572,13 +1573,28 @@ async function reactPost(postId, type) {
     const updated = await get(`/api/posts?userId=${currentUser.userId}`);
     const p = updated.find(x => x.id === postId);
     if (!p) return;
-    document.getElementById(`likes-${postId}`).textContent = p.like_count;
-    document.getElementById(`dislikes-${postId}`).textContent = p.dislike_count;
-    // Update button states
+    
+    // Update HOME feed buttons if present
     const card = document.getElementById(`post-${postId}`);
-    const likeBtns = card.querySelectorAll('.post-action-btn');
-    likeBtns[0].className = `post-action-btn ${p.my_reaction === 'like' ? 'liked' : ''}`;
-    likeBtns[1].className = `post-action-btn ${p.my_reaction === 'dislike' ? 'disliked' : ''}`;
+    if (card) {
+      document.getElementById(`likes-${postId}`).textContent = p.like_count;
+      document.getElementById(`dislikes-${postId}`).textContent = p.dislike_count;
+      const likeBtns = card.querySelectorAll('.post-action-btn');
+      if (likeBtns.length >= 2) {
+        likeBtns[0].className = `post-action-btn ${p.my_reaction === 'like' ? 'liked' : ''}`;
+        likeBtns[1].className = `post-action-btn ${p.my_reaction === 'dislike' ? 'disliked' : ''}`;
+      }
+    }
+
+    // Update PROFILE feed buttons if present
+    const pLikeBtn = document.getElementById(`profile-like-btn-${postId}`);
+    const pDislikeBtn = document.getElementById(`profile-dislike-btn-${postId}`);
+    if (pLikeBtn && pDislikeBtn) {
+      document.getElementById(`profile-likes-${postId}`).textContent = p.like_count;
+      document.getElementById(`profile-dislikes-${postId}`).textContent = p.dislike_count;
+      pLikeBtn.style.color = p.my_reaction === 'like' ? 'var(--danger)' : '';
+      pDislikeBtn.style.color = p.my_reaction === 'dislike' ? 'var(--accent)' : '';
+    }
   } catch(e) { console.error(e); }
 }
 

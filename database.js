@@ -38,7 +38,10 @@ db.serialize(() => {
     is_admin INTEGER DEFAULT 0,
     UNIQUE(chat_id, user_id)
   )`);
-  db.run(`ALTER TABLE group_members ADD COLUMN is_admin INTEGER DEFAULT 0`, (err) => {});
+  db.run(`ALTER TABLE group_members ADD COLUMN is_admin INTEGER DEFAULT 0`, (err) => {
+    // Retroactively set creator as admin for older groups
+    db.run(`UPDATE group_members SET is_admin = 1 WHERE user_id = (SELECT user1_id FROM chats WHERE chats.id = group_members.chat_id)`);
+  });
 
   db.run(`CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
